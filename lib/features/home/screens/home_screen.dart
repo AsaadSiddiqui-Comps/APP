@@ -311,9 +311,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     : AppColors.lightSurfaceContainerHigh,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(
-                Icons.picture_as_pdf_rounded,
-                color: isDark ? const Color(0xFFB6CBC3) : AppColors.primary,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: File(doc.thumbnailPath).existsSync()
+                    ? Image.file(
+                        File(doc.thumbnailPath),
+                        fit: BoxFit.cover,
+                        cacheWidth: 160,
+                      )
+                    : Icon(
+                        Icons.picture_as_pdf_rounded,
+                        color: isDark
+                            ? const Color(0xFFB6CBC3)
+                            : AppColors.primary,
+                      ),
               ),
             ),
             const SizedBox(width: 12),
