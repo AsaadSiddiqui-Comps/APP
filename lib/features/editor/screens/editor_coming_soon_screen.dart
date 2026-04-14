@@ -7,7 +7,9 @@ import '../../../core/constants/app_colors.dart';
 import '../../camera/models/camera_capture_result.dart';
 import '../../camera/screens/camera_capture_screen.dart';
 import '../../documents/data/document_draft_store.dart';
+import '../../documents/data/document_storage_service.dart';
 import '../../documents/models/document_draft.dart';
+import 'manual_crop_screen.dart';
 import '../services/image_edit_service.dart';
 
 class EditorComingSoonScreen extends StatefulWidget {
@@ -428,10 +430,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen> {
   }
 
   Future<void> _autoCrop() async {
-    await _applyEdit(
-      actionName: 'Auto crop',
-      run: (String path) => ImageEditService.autoCrop(path),
-    );
+    await _openManualCrop(autoDetectEdges: true);
   }
 
   Future<void> _rotateCurrent() async {
@@ -442,44 +441,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen> {
   }
 
   Future<void> _cropCurrent() async {
-    final double? ratio = await showModalBottomSheet<double>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('Original (keep most area)'),
-                onTap: () => Navigator.of(context).pop(0.72),
-              ),
-              ListTile(
-                title: const Text('A4 ratio'),
-                onTap: () => Navigator.of(context).pop(210 / 297),
-              ),
-              ListTile(
-                title: const Text('Square'),
-                onTap: () => Navigator.of(context).pop(1),
-              ),
-              ListTile(
-                title: const Text('3:4'),
-                onTap: () => Navigator.of(context).pop(3 / 4),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (ratio == null) {
-      return;
-    }
-
-    await _applyEdit(
-      actionName: 'Crop',
-      run: (String path) => ImageEditService.cropCenterByRatio(path, ratio),
-    );
+    await _openManualCrop(autoDetectEdges: false);
   }
 
   Future<void> _showFilters() async {
@@ -487,41 +449,116 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen> {
         await showModalBottomSheet<EditorFilterType>(
           context: context,
           showDragHandle: true,
+          isScrollControlled: true,
           builder: (BuildContext context) {
+            final List<_FilterOption> options = <_FilterOption>[
+              const _FilterOption(
+                type: EditorFilterType.enhanced,
+                title: 'Enhanced',
+                subtitle: 'Balanced document clarity',
+                icon: Icons.auto_awesome_rounded,
+              ),
+              const _FilterOption(
+                type: EditorFilterType.pro,
+                title: 'Pro',
+                subtitle: 'Sharper edges for text',
+                icon: Icons.star_rounded,
+              ),
+              const _FilterOption(
+                type: EditorFilterType.grayscale,
+                title: 'Greyscale',
+                subtitle: 'Natural monochrome look',
+                icon: Icons.grain_rounded,
+              ),
+              const _FilterOption(
+                type: EditorFilterType.blackWhite,
+                title: 'Black & White',
+                subtitle: 'Strong OCR contrast mode',
+                icon: Icons.document_scanner_rounded,
+              ),
+              const _FilterOption(
+                type: EditorFilterType.cleanText,
+                title: 'Clean Text',
+                subtitle: 'Best for invoices and contracts',
+                icon: Icons.text_fields_rounded,
+              ),
+              const _FilterOption(
+                type: EditorFilterType.vivid,
+                title: 'Vivid',
+                subtitle: 'Color-rich scan enhancement',
+                icon: Icons.palette_outlined,
+              ),
+              const _FilterOption(
+                type: EditorFilterType.warm,
+                title: 'Warm',
+                subtitle: 'Soft paper-like tone',
+                icon: Icons.wb_sunny_outlined,
+              ),
+            ];
+
             return SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.auto_awesome_rounded),
-                    title: const Text('Enhanced'),
-                    subtitle: const Text('Boost contrast and clarity'),
-                    onTap: () =>
-                        Navigator.of(context).pop(EditorFilterType.enhanced),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.star_rounded),
-                    title: const Text('Pro'),
-                    subtitle: const Text(
-                      'Sharper details for text-heavy scans',
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose Filter',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                    onTap: () =>
-                        Navigator.of(context).pop(EditorFilterType.pro),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.grain_rounded),
-                    title: const Text('Greyscale'),
-                    onTap: () =>
-                        Navigator.of(context).pop(EditorFilterType.grayscale),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.document_scanner_rounded),
-                    title: const Text('Black & White'),
-                    subtitle: const Text('High-contrast for OCR-ready pages'),
-                    onTap: () =>
-                        Navigator.of(context).pop(EditorFilterType.blackWhite),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    GridView.builder(
+                      itemCount: options.length,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 1.45,
+                          ),
+                      itemBuilder: (BuildContext context, int index) {
+                        final _FilterOption option = options[index];
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.of(context).pop(option.type),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(option.icon),
+                                const Spacer(),
+                                Text(
+                                  option.title,
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  option.subtitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -697,6 +734,14 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen> {
   }
 
   Future<void> _saveAsDraft() async {
+    if (_isProcessing || _pages.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
     final String name = _nameController.text.trim().isEmpty
         ? 'Untitled scan'
         : _nameController.text.trim();
@@ -704,35 +749,109 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen> {
     final String draftId =
         widget.existingDraftId ??
         DateTime.now().millisecondsSinceEpoch.toString();
-    final DocumentDraft draft = DocumentDraft(
-      id: draftId,
-      name: name,
-      pagePaths: _pages.map((XFile file) => file.path).toList(growable: false),
-      updatedAt: DateTime.now(),
-    );
 
-    DocumentDraftStore.instance.upsert(draft);
+    try {
+      final List<String> persistedPaths = <String>[];
+      for (int i = 0; i < _pages.length; i += 1) {
+        final String saved = await DocumentStorageService.instance
+            .copyPageToDraft(_pages[i].path, draftId, i);
+        persistedPaths.add(saved);
+      }
 
-    if (!mounted) {
+      final DocumentDraft draft = DocumentDraft(
+        id: draftId,
+        name: name,
+        pagePaths: persistedPaths,
+        updatedAt: DateTime.now(),
+      );
+
+      await DocumentDraftStore.instance.upsert(draft);
+
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved as draft.')));
+      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save draft. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openManualCrop({required bool autoDetectEdges}) async {
+    if (_pages.isEmpty || _isProcessing) {
       return;
     }
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Saved as draft'),
-          content: const Text(
-            'You can continue this document later from Recent Files.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final int targetIndex = _currentPage;
+      final String sourcePath = _pages[targetIndex].path;
+      final NormalizedCropRect initialRect = autoDetectEdges
+          ? await ImageEditService.detectDocumentRectNormalized(sourcePath)
+          : const NormalizedCropRect(
+              left: 0.08,
+              top: 0.08,
+              right: 0.92,
+              bottom: 0.92,
+            );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      final NormalizedCropRect? result = await Navigator.of(context)
+          .push<NormalizedCropRect>(
+            MaterialPageRoute<NormalizedCropRect>(
+              builder: (_) => ManualCropScreen(
+                imagePath: sourcePath,
+                initialRect: initialRect,
+                title: autoDetectEdges ? 'Auto Crop Adjust' : 'Manual Crop',
+              ),
             ),
-          ],
-        );
-      },
-    );
+          );
+
+      if (result == null || !mounted) {
+        return;
+      }
+
+      await _applyEdit(
+        actionName: autoDetectEdges ? 'Auto crop' : 'Crop',
+        run: (String path) =>
+            ImageEditService.cropByNormalizedRect(path, result),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Crop setup failed. Try again.')),
+      );
+      setState(() {
+        _isProcessing = false;
+      });
+    }
   }
 
   void _editFileName() {
@@ -785,4 +904,18 @@ class _ToolAction {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+}
+
+class _FilterOption {
+  const _FilterOption({
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final EditorFilterType type;
+  final String title;
+  final String subtitle;
+  final IconData icon;
 }

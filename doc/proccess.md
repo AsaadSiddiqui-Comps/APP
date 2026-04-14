@@ -3,7 +3,7 @@ build/app/outputs/flutter-apk/app-debug.apk
 
 ok all things are proepr 
 now you have to fix first that auto feature in that it will crop as per the edge dection use best package for that 
-after corping it will give the acess to draw the corner as per the image i haev hsahr 
+after corping it will give the acess to draw the corner as per the image i haev hsahr dragcorners to customize it
 Add actual manual crop handles (drag corners) like your reference UI
 Add persistent local storage for drafts (survive app restart).
 

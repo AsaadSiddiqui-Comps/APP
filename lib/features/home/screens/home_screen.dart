@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final ImagePicker _imagePicker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    DocumentDraftStore.instance.initialize();
+  }
 
   final List<Map<String, dynamic>> _quickActions = <Map<String, dynamic>>[
     {
@@ -572,7 +579,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openDraft(DocumentDraft draft) async {
-    final List<XFile> pages = draft.pagePaths
+    final List<String> existingPaths = draft.pagePaths
+        .where((String path) => File(path).existsSync())
+        .toList(growable: false);
+
+    if (existingPaths.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Draft files not found on device.')),
+      );
+      return;
+    }
+
+    final List<XFile> pages = existingPaths
         .map((String path) => XFile(path))
         .toList(growable: false);
 

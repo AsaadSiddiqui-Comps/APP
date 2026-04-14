@@ -26,4 +26,22 @@ class DocumentDraft {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'pagePaths': pagePaths,
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  factory DocumentDraft.fromMap(Map<String, dynamic> map) {
+    return DocumentDraft(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      pagePaths: List<String>.from(map['pagePaths'] as List<dynamic>),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
+    );
+  }
 }

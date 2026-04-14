@@ -1,13 +1,66 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
-enum EditorFilterType { enhanced, pro, grayscale, blackWhite }
+enum EditorFilterType {
+  enhanced,
+  pro,
+  grayscale,
+  blackWhite,
+  vivid,
+  cleanText,
+  warm,
+}
 
 enum EditorResizeMode { autoFit, a4, a3 }
 
 class ImageEditService {
+  static Future<NormalizedCropRect> detectDocumentRectNormalized(
+    String sourcePath,
+  ) async {
+    final img.Image image = await _decode(sourcePath);
+    final _Bounds bounds = _estimateDocumentBounds(image);
+    return NormalizedCropRect(
+      left: bounds.x / image.width,
+      top: bounds.y / image.height,
+      right: (bounds.x + bounds.width) / image.width,
+      bottom: (bounds.y + bounds.height) / image.height,
+    ).clamped();
+  }
+
+  static Future<String> cropByNormalizedRect(
+    String sourcePath,
+    NormalizedCropRect rect,
+  ) async {
+    final img.Image image = await _decode(sourcePath);
+    final NormalizedCropRect safe = rect.clamped();
+
+    final int x = (safe.left * image.width).round().clamp(0, image.width - 2);
+    final int y = (safe.top * image.height).round().clamp(0, image.height - 2);
+    final int right = (safe.right * image.width).round().clamp(
+      x + 1,
+      image.width,
+    );
+    final int bottom = (safe.bottom * image.height).round().clamp(
+      y + 1,
+      image.height,
+    );
+
+    final int width = (right - x).clamp(1, image.width);
+    final int height = (bottom - y).clamp(1, image.height);
+
+    final img.Image cropped = img.copyCrop(
+      image,
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+    );
+    return _persist(cropped, sourcePath, 'manualcrop');
+  }
+
   static Future<String> rotate90(String sourcePath) async {
     final img.Image image = await _decode(sourcePath);
     final img.Image rotated = img.copyRotate(image, angle: 90);
@@ -91,6 +144,32 @@ class ImageEditService {
         image = img.grayscale(image);
         image = img.adjustColor(image, contrast: 1.55);
         image = img.luminanceThreshold(image, threshold: 0.57);
+        break;
+      case EditorFilterType.vivid:
+        image = img.adjustColor(
+          image,
+          contrast: 1.2,
+          saturation: 1.25,
+          brightness: 1.05,
+        );
+        break;
+      case EditorFilterType.cleanText:
+        image = img.grayscale(image);
+        image = img.adjustColor(image, contrast: 1.7, brightness: 1.08);
+        image = img.convolution(
+          image,
+          filter: <num>[0, -1, 0, -1, 5, -1, 0, -1, 0],
+        );
+        image = img.luminanceThreshold(image, threshold: 0.56);
+        break;
+      case EditorFilterType.warm:
+        image = img.adjustColor(
+          image,
+          contrast: 1.08,
+          saturation: 1.1,
+          brightness: 1.04,
+        );
+        image = img.colorOffset(image, red: 10, green: 2, blue: -8);
         break;
     }
 
@@ -241,6 +320,70 @@ class ImageEditService {
       y.clamp(0, image.height - 1),
     );
     return ((pixel.r + pixel.g + pixel.b) / 3).round();
+  }
+}
+
+class NormalizedCropRect {
+  const NormalizedCropRect({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  NormalizedCropRect clamped() {
+    final double clampedLeft = left.clamp(0.0, 1.0);
+    final double clampedTop = top.clamp(0.0, 1.0);
+    final double clampedRight = right.clamp(0.0, 1.0);
+    final double clampedBottom = bottom.clamp(0.0, 1.0);
+    const double minGap = 0.08;
+
+    double safeLeft = clampedLeft;
+    double safeTop = clampedTop;
+    double safeRight = clampedRight;
+    double safeBottom = clampedBottom;
+
+    if (safeRight - safeLeft < minGap) {
+      final double center = (safeLeft + safeRight) / 2;
+      safeLeft = (center - minGap / 2).clamp(0.0, 1.0 - minGap);
+      safeRight = safeLeft + minGap;
+    }
+
+    if (safeBottom - safeTop < minGap) {
+      final double center = (safeTop + safeBottom) / 2;
+      safeTop = (center - minGap / 2).clamp(0.0, 1.0 - minGap);
+      safeBottom = safeTop + minGap;
+    }
+
+    return NormalizedCropRect(
+      left: safeLeft,
+      top: safeTop,
+      right: safeRight,
+      bottom: safeBottom,
+    );
+  }
+
+  Rect toRect(Size size) {
+    return Rect.fromLTRB(
+      left * size.width,
+      top * size.height,
+      right * size.width,
+      bottom * size.height,
+    );
+  }
+
+  static NormalizedCropRect fromRect(Rect rect, Size size) {
+    return NormalizedCropRect(
+      left: rect.left / size.width,
+      top: rect.top / size.height,
+      right: rect.right / size.width,
+      bottom: rect.bottom / size.height,
+    ).clamped();
   }
 }
 
