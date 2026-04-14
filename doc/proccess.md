@@ -27,3 +27,40 @@ opencv_dart: ^2.2.1+4
 the app perfomace is slithly low bez their is no aniamtion and transition at all the app is in low state , we want optimzed one with better feedback delever to it
 
 also dont make that code become inconsistent make it proepr structured way not that all things in one we have to make bet and better app with good performance and best feature deal
+
+
+
+NOw lets implement the Saving option 
+first more that save as draft to the editor top 3 dot menu
+and if your like try to go bakc then it will poup that dscard or save as draft
+discord means it will go to the home screen without sve it draft also adn if sve as draft it will be save a draft and back to the home screen with saving the draft
+
+now on blow you have to add one button done in the palce of save as draft
+it will redriect to he next screen
+now in next screen it will ve below on button save to ..
+blviking on it will open menu
+save to device ->
+Export to ... ->
+
+-- section break --
+[icon]Add watermark
+[icon]add digital signature
+[icon]rename 
+[icon]print
+[icon]delete
+
+when user clicks save to device
+on save to device it will direclty open a mobile file exploler adn user will chose the destination that where to save
+when destination choosed now it will direclty export that document in to pdf format in to that specific destination it will show the progress bar
+
+Export to 
+then it will open one menue in that itwill show exporting options that all pdf or images if images slelected then all images taken wil be exported in image format only sepratly and if pdf then it will make one full pdfwhich contains all photos
+
+forte nm=ow make this only we will be implmeneting more thing soon as per the progress we are doing 
+make sure to optimzed lag free
+
+
+THINGS TO FIX
+first make the background preprocessin to the image taken so all thing wil be fast and optimzed its laggin now for this 
+the rotating viusal will be shown os it will better by cliking to much time and it is also laggin to to rotate so we need to fix this
+improe the crop dragable dorping propelr it lagging 

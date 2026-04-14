@@ -11,6 +11,7 @@ import '../../camera/screens/camera_capture_screen.dart';
 import '../../documents/data/document_draft_store.dart';
 import '../../documents/data/document_storage_service.dart';
 import '../../documents/models/document_draft.dart';
+import '../../export/screens/document_export_screen.dart';
 import '../services/image_edit_service.dart';
 
 class EditorComingSoonScreen extends StatefulWidget {
@@ -103,236 +104,239 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
         : AppColors.lightOnSurfaceVariant;
     final Color accent = isDark ? const Color(0xFF6E83FF) : AppColors.primary;
 
-    return Scaffold(
-      backgroundColor: bg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-              child: Row(
-                children: [
-                  _circleButton(
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () => Navigator.of(context).pop(),
-                    isDark: isDark,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: _editFileName,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: panel,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _nameController.text,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: onSurface,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+    return WillPopScope(
+      onWillPop: _confirmLeaveEditor,
+      child: Scaffold(
+        backgroundColor: bg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                child: Row(
+                  children: [
+                    _circleButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: _confirmLeaveEditorFromTap,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: _editFileName,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: panel,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _nameController.text,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: onSurface,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
                               ),
-                            ),
-                            Icon(
-                              Icons.edit_rounded,
-                              color: onSurfaceVariant,
-                              size: 18,
-                            ),
-                          ],
+                              Icon(
+                                Icons.edit_rounded,
+                                color: onSurfaceVariant,
+                                size: 18,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  _circleButton(
-                    icon: Icons.more_horiz_rounded,
-                    onTap: null,
-                    isDark: isDark,
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Text(
-                    'Page ${_currentPage + 1} of ${_pages.length}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelLarge?.copyWith(color: onSurfaceVariant),
-                  ),
-                  const Spacer(),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: panel,
-                      borderRadius: BorderRadius.circular(999),
+                    const SizedBox(width: 10),
+                    _circleButton(
+                      icon: Icons.more_horiz_rounded,
+                      onTap: _showEditorMenu,
+                      isDark: isDark,
                     ),
-                    child: Row(
-                      children: [
-                        _applyScopeChip(
-                          label: 'This page',
-                          selected: !_applyToAllPages,
-                          accent: accent,
-                          onTap: () {
-                            setState(() {
-                              _applyToAllPages = false;
-                            });
-                          },
-                        ),
-                        _applyScopeChip(
-                          label: 'All pages',
-                          selected: _applyToAllPages,
-                          accent: accent,
-                          onTap: () {
-                            setState(() {
-                              _applyToAllPages = true;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            if (_isCropMode) ...[
-              const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: _buildInlineCropBar(accent: accent),
+                child: Row(
+                  children: [
+                    Text(
+                      'Page ${_currentPage + 1} of ${_pages.length}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(color: onSurfaceVariant),
+                    ),
+                    const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: panel,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        children: [
+                          _applyScopeChip(
+                            label: 'This page',
+                            selected: !_applyToAllPages,
+                            accent: accent,
+                            onTap: () {
+                              setState(() {
+                                _applyToAllPages = false;
+                              });
+                            },
+                          ),
+                          _applyScopeChip(
+                            label: 'All pages',
+                            selected: _applyToAllPages,
+                            accent: accent,
+                            onTap: () {
+                              setState(() {
+                                _applyToAllPages = true;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-            const SizedBox(height: 8),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    color: panelLow,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: _pages.length,
-                      physics: _isCropMode
-                          ? const NeverScrollableScrollPhysics()
-                          : const BouncingScrollPhysics(),
-                      onPageChanged: (int index) {
-                        setState(() {
-                          _currentPage = index;
-                          _exitInlineModes();
-                          _activeFilterSelection =
-                              _appliedFilterByPage[index] ??
-                              EditorFilterType.none;
-                        });
-                        _prepareFilterPreviews();
-                      },
-                      itemBuilder: (BuildContext context, int index) {
-                        return _buildPageItem(index: index, accent: accent);
-                      },
+              if (_isCropMode) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _buildInlineCropBar(accent: accent),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      color: panelLow,
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemCount: _pages.length,
+                        physics: _isCropMode
+                            ? const NeverScrollableScrollPhysics()
+                            : const BouncingScrollPhysics(),
+                        onPageChanged: (int index) {
+                          setState(() {
+                            _currentPage = index;
+                            _exitInlineModes();
+                            _activeFilterSelection =
+                                _appliedFilterByPage[index] ??
+                                EditorFilterType.none;
+                          });
+                          _prepareFilterPreviews();
+                        },
+                        itemBuilder: (BuildContext context, int index) {
+                          return _buildPageItem(index: index, accent: accent);
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 66,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _pages.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final bool selected = index == _currentPage;
-                  return GestureDetector(
-                    onTap: _isCropMode
-                        ? null
-                        : () {
-                            _pageController.animateToPage(
-                              index,
-                              duration: const Duration(milliseconds: 240),
-                              curve: Curves.easeOutCubic,
-                            );
-                          },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      width: 52,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: selected ? accent : Colors.transparent,
-                          width: 2,
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 66,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _pages.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    final bool selected = index == _currentPage;
+                    return GestureDetector(
+                      onTap: _isCropMode
+                          ? null
+                          : () {
+                              _pageController.animateToPage(
+                                index,
+                                duration: const Duration(milliseconds: 240),
+                                curve: Curves.easeOutCubic,
+                              );
+                            },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: 52,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selected ? accent : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(_pages[index].path),
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(_pages[index].path),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: _showFilterStrip
-                  ? _buildInlineFilterStrip(isDark: isDark, accent: accent)
-                  : const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 8),
-            _buildToolsBar(isDark: isDark, accent: accent),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.tonal(
-                      onPressed: _scanMore,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: const Text('Scan More'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _saveAsDraft,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: accent,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(0, 52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      child: const Text('Save Draft'),
-                    ),
-                  ),
-                ],
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: _showFilterStrip
+                    ? _buildInlineFilterStrip(isDark: isDark, accent: accent)
+                    : const SizedBox.shrink(),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              _buildToolsBar(isDark: isDark, accent: accent),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.tonal(
+                        onPressed: _scanMore,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        child: const Text('Scan More'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _openExportScreen,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: accent,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        child: const Text('Done'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1173,6 +1177,103 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
           ],
         );
       },
+    );
+  }
+
+  Future<bool> _confirmLeaveEditor() async {
+    if (!mounted) {
+      return false;
+    }
+
+    final String? action = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Leave editor?'),
+          content: const Text(
+            'You can discard changes or save this document as a draft before leaving.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop('cancel'),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop('discard'),
+              child: const Text('Discard'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop('save'),
+              child: const Text('Save as draft'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (action == 'discard') {
+      _goHomeWithoutSaving();
+    } else if (action == 'save') {
+      await _saveAsDraft();
+    }
+
+    return false;
+  }
+
+  void _confirmLeaveEditorFromTap() {
+    _confirmLeaveEditor();
+  }
+
+  void _goHomeWithoutSaving() {
+    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+  }
+
+  void _showEditorMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.save_outlined),
+                title: const Text('Save as draft'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _saveAsDraft();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Discard'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _goHomeWithoutSaving();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openExportScreen() async {
+    if (_isProcessing || _pages.isEmpty) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DocumentExportScreen(
+          pages: List<XFile>.from(_pages),
+          documentName: _nameController.text.trim().isEmpty
+              ? 'Untitled scan'
+              : _nameController.text.trim(),
+        ),
+      ),
     );
   }
 
