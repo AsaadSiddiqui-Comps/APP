@@ -24,11 +24,13 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
   ExportFormat _selectedExportFormat = ExportFormat.pdf;
   String? _destinationDirectory;
   late String _documentName;
+  double _estimatedSizeMb = 0;
 
   @override
   void initState() {
     super.initState();
     _documentName = widget.documentName;
+    _refreshEstimate();
   }
 
   @override
@@ -157,6 +159,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                                   setState(() {
                                     _selectedExportFormat = ExportFormat.pdf;
                                   });
+                                  _refreshEstimate();
                                 },
                               ),
                             ),
@@ -174,6 +177,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                                   setState(() {
                                     _selectedExportFormat = ExportFormat.images;
                                   });
+                                  _refreshEstimate();
                                 },
                               ),
                             ),
@@ -310,17 +314,38 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: FilledButton(
-            onPressed: _isExporting ? null : _openSaveMenu,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(double.infinity, 54),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isExporting ? null : _chooseDestination,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 54),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: const Text('Save to...'),
+                ),
               ),
-              backgroundColor: accent,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Save to...'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _isExporting ? null : _exportNow,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 54),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    backgroundColor: accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                    'Export (${_estimatedSizeMb.toStringAsFixed(1)} MB)',
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -409,76 +434,8 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
     );
   }
 
-  Future<void> _openSaveMenu() async {
-    final String? action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.save_alt_rounded),
-                title: const Text('Save to device'),
-                subtitle: const Text('Choose a folder and save as PDF'),
-                onTap: () => Navigator.of(context).pop('device'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.import_export_rounded),
-                title: const Text('Export to...'),
-                subtitle: const Text('Choose PDF or images'),
-                onTap: () => Navigator.of(context).pop('export'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (action == null) {
-      return;
-    }
-
-    if (action == 'device') {
-      await _exportToDevicePdf();
-    } else {
-      await _openExportFormatMenu();
-    }
-  }
-
-  Future<void> _openExportFormatMenu() async {
-    final ExportFormat? format = await showModalBottomSheet<ExportFormat>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.picture_as_pdf_rounded),
-                title: const Text('PDF'),
-                subtitle: const Text('All pages in one file'),
-                onTap: () => Navigator.of(context).pop(ExportFormat.pdf),
-              ),
-              ListTile(
-                leading: const Icon(Icons.image_outlined),
-                title: const Text('Images'),
-                subtitle: const Text('Each page exported separately'),
-                onTap: () => Navigator.of(context).pop(ExportFormat.images),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (format == null) {
-      return;
-    }
-
-    if (format == ExportFormat.pdf) {
+  Future<void> _exportNow() async {
+    if (_selectedExportFormat == ExportFormat.pdf) {
       await _exportToDevicePdf();
     } else {
       await _exportImages();
@@ -581,6 +538,20 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
 
     setState(() {
       _destinationDirectory = directory;
+    });
+  }
+
+  Future<void> _refreshEstimate() async {
+    final double estimate = await DocumentExportService.estimateOutputSizeMb(
+      pages: widget.pages,
+      format: _selectedExportFormat,
+    );
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _estimatedSizeMb = estimate;
     });
   }
 

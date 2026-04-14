@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -10,6 +11,25 @@ import '../../documents/data/document_storage_service.dart';
 enum ExportFormat { pdf, images }
 
 class DocumentExportService {
+  static Future<double> estimateOutputSizeMb({
+    required List<XFile> pages,
+    required ExportFormat format,
+  }) async {
+    int totalBytes = 0;
+    for (final XFile page in pages) {
+      final File file = File(page.path);
+      if (await file.exists()) {
+        totalBytes += await file.length();
+      }
+    }
+
+    if (format == ExportFormat.pdf) {
+      totalBytes = (totalBytes * 0.7).round();
+    }
+
+    return totalBytes / (1024 * 1024);
+  }
+
   static Future<String> exportPdf({
     required String destinationDirectory,
     required String fileName,
@@ -18,11 +38,12 @@ class DocumentExportService {
     final pw.Document doc = pw.Document();
 
     for (final XFile page in pages) {
-      final Uint8List bytes = await File(page.path).readAsBytes();
+      final Uint8List bytes = await _preparePdfPageBytes(page.path);
       final pw.MemoryImage image = pw.MemoryImage(bytes);
       doc.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(18),
           build: (pw.Context context) {
             return pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain));
           },
@@ -61,6 +82,26 @@ class DocumentExportService {
 
   static Future<Directory> defaultExportDirectory() async {
     return DocumentStorageService.instance.getExportedDir();
+  }
+
+  static Future<Uint8List> _preparePdfPageBytes(String path) async {
+    final Uint8List original = await File(path).readAsBytes();
+    final img.Image? decoded = img.decodeImage(original);
+    if (decoded == null) {
+      return original;
+    }
+
+    const int maxWidth = 1700;
+    img.Image processed = decoded;
+    if (decoded.width > maxWidth) {
+      processed = img.copyResize(
+        decoded,
+        width: maxWidth,
+        interpolation: img.Interpolation.average,
+      );
+    }
+
+    return Uint8List.fromList(img.encodeJpg(processed, quality: 88));
   }
 
   static String _sanitizeFileName(String value) {

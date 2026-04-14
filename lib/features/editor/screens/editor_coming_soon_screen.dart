@@ -48,6 +48,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   Size? _cropImageSize;
 
   bool _showFilterStrip = false;
+  bool _showRotateStrip = false;
   EditorFilterType _activeFilterSelection = EditorFilterType.none;
   final Map<int, EditorFilterType> _appliedFilterByPage =
       <int, EditorFilterType>{};
@@ -298,6 +299,13 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
                     ? _buildInlineFilterStrip(isDark: isDark, accent: accent)
                     : const SizedBox.shrink(),
               ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: _showRotateStrip
+                    ? _buildRotateStrip(isDark: isDark, accent: accent)
+                    : const SizedBox.shrink(),
+              ),
               const SizedBox(height: 8),
               _buildToolsBar(isDark: isDark, accent: accent),
               const SizedBox(height: 10),
@@ -379,12 +387,11 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
             Image.file(File(_pages[index].path), fit: BoxFit.contain),
             _InlineQuadCropOverlay(
               imageRect: imageRect,
+              imagePath: _pages[index].path,
               quad: _cropQuad!,
               accent: accent,
               onChanged: (NormalizedQuad next) {
-                setState(() {
-                  _cropQuad = next;
-                });
+                _cropQuad = next;
               },
             ),
           ],
@@ -515,7 +522,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
       _ToolAction(
         label: 'Rotate',
         icon: Icons.rotate_90_degrees_ccw_rounded,
-        onTap: _rotateCurrent,
+        onTap: _toggleRotateStrip,
       ),
       _ToolAction(
         label: 'Filter',
@@ -659,6 +666,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     setState(() {
       _isProcessing = true;
       _showFilterStrip = false;
+      _showRotateStrip = false;
     });
 
     try {
@@ -704,6 +712,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     setState(() {
       _isProcessing = true;
       _showFilterStrip = false;
+      _showRotateStrip = false;
     });
 
     try {
@@ -798,10 +807,24 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     });
   }
 
-  Future<void> _rotateCurrent() async {
+  void _toggleRotateStrip() {
+    if (_isCropMode) {
+      _cancelInlineCrop();
+    }
+    setState(() {
+      _showRotateStrip = !_showRotateStrip;
+      _showFilterStrip = false;
+    });
+  }
+
+  Future<void> _applyRotateOption(int degrees) async {
+    if (_isProcessing) {
+      return;
+    }
     await _applyEdit(
       actionName: 'Rotate',
-      run: (String path) => ImageEditService.rotate90(path),
+      run: (String path) => ImageEditService.rotateByDegrees(path, degrees),
+      showSuccessToast: false,
     );
     _prepareFilterPreviews();
   }
@@ -812,6 +835,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     }
     setState(() {
       _showFilterStrip = !_showFilterStrip;
+      _showRotateStrip = false;
       _activeFilterSelection =
           _appliedFilterByPage[_currentPage] ?? EditorFilterType.none;
     });
@@ -960,6 +984,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     required String actionName,
     required Future<String> Function(String path) run,
     void Function(int index)? onEachUpdated,
+    bool showSuccessToast = true,
   }) async {
     if (_pages.isEmpty || _isProcessing) {
       return;
@@ -986,9 +1011,11 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
       setState(() {
         _isProcessing = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$actionName applied.')));
+      if (showSuccessToast) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$actionName applied.')));
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -1287,6 +1314,56 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   void _exitInlineModes() {
     _exitInlineCropOnly();
     _showFilterStrip = false;
+    _showRotateStrip = false;
+  }
+
+  Widget _buildRotateStrip({required bool isDark, required Color accent}) {
+    final List<_RotateOption> options = <_RotateOption>[
+      const _RotateOption('Left 90', Icons.rotate_left_rounded, -90),
+      const _RotateOption('Right 90', Icons.rotate_right_rounded, 90),
+      const _RotateOption('180', Icons.refresh_rounded, 180),
+      const _RotateOption('270', Icons.screen_rotation_alt_rounded, 270),
+    ];
+
+    return SizedBox(
+      height: 98,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (BuildContext context, int index) {
+          final _RotateOption option = options[index];
+          return GestureDetector(
+            onTap: () => _applyRotateOption(option.degrees),
+            child: Container(
+              width: 112,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: isDark
+                    ? AppColors.darkSurfaceContainerLow
+                    : AppColors.lightSurfaceContainer,
+                border: Border.all(color: accent.withOpacity(0.28)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(option.icon, color: accent),
+                  const Spacer(),
+                  Text(
+                    option.label,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   String _labelForFilter(EditorFilterType filter) {
@@ -1323,37 +1400,75 @@ class _ToolAction {
   final VoidCallback onTap;
 }
 
-class _InlineQuadCropOverlay extends StatelessWidget {
+class _RotateOption {
+  const _RotateOption(this.label, this.icon, this.degrees);
+
+  final String label;
+  final IconData icon;
+  final int degrees;
+}
+
+class _InlineQuadCropOverlay extends StatefulWidget {
   const _InlineQuadCropOverlay({
     required this.imageRect,
+    required this.imagePath,
     required this.quad,
     required this.accent,
     required this.onChanged,
   });
 
   final Rect imageRect;
+  final String imagePath;
   final NormalizedQuad quad;
   final Color accent;
   final ValueChanged<NormalizedQuad> onChanged;
 
   @override
+  State<_InlineQuadCropOverlay> createState() => _InlineQuadCropOverlayState();
+}
+
+class _InlineQuadCropOverlayState extends State<_InlineQuadCropOverlay> {
+  late NormalizedQuad _quad;
+  Offset? _previewPoint;
+
+  @override
+  void initState() {
+    super.initState();
+    _quad = widget.quad;
+  }
+
+  @override
+  void didUpdateWidget(covariant _InlineQuadCropOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quad != widget.quad ||
+        oldWidget.imagePath != widget.imagePath) {
+      _quad = widget.quad;
+      _previewPoint = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final Offset tl = _toScreen(quad.topLeft);
-    final Offset tr = _toScreen(quad.topRight);
-    final Offset br = _toScreen(quad.bottomRight);
-    final Offset bl = _toScreen(quad.bottomLeft);
+    final Offset tl = _toScreen(_quad.topLeft);
+    final Offset tr = _toScreen(_quad.topRight);
+    final Offset br = _toScreen(_quad.bottomRight);
+    final Offset bl = _toScreen(_quad.bottomLeft);
+    final Offset tm = Offset((tl.dx + tr.dx) / 2, (tl.dy + tr.dy) / 2);
+    final Offset rm = Offset((tr.dx + br.dx) / 2, (tr.dy + br.dy) / 2);
+    final Offset bm = Offset((bl.dx + br.dx) / 2, (bl.dy + br.dy) / 2);
+    final Offset lm = Offset((tl.dx + bl.dx) / 2, (tl.dy + bl.dy) / 2);
 
     return Stack(
       children: [
         Positioned.fill(
           child: CustomPaint(
             painter: _QuadOverlayPainter(
-              imageRect: imageRect,
+              imageRect: widget.imageRect,
               topLeft: tl,
               topRight: tr,
               bottomRight: br,
               bottomLeft: bl,
-              accent: accent,
+              accent: widget.accent,
             ),
           ),
         ),
@@ -1377,6 +1492,25 @@ class _InlineQuadCropOverlay extends StatelessWidget {
           onDrag: (Offset delta) =>
               _updateCorner(corner: _QuadCorner.bottomLeft, delta: delta),
         ),
+        _edgeHandle(
+          point: tm,
+          onDrag: (Offset delta) => _updateEdge(edge: _Edge.top, delta: delta),
+        ),
+        _edgeHandle(
+          point: rm,
+          onDrag: (Offset delta) =>
+              _updateEdge(edge: _Edge.right, delta: delta),
+        ),
+        _edgeHandle(
+          point: bm,
+          onDrag: (Offset delta) =>
+              _updateEdge(edge: _Edge.bottom, delta: delta),
+        ),
+        _edgeHandle(
+          point: lm,
+          onDrag: (Offset delta) => _updateEdge(edge: _Edge.left, delta: delta),
+        ),
+        if (_previewPoint != null) _buildLoupe(_previewPoint!),
       ],
     );
   }
@@ -1389,14 +1523,16 @@ class _InlineQuadCropOverlay extends StatelessWidget {
       left: point.dx - 14,
       top: point.dy - 14,
       child: GestureDetector(
+        onPanStart: (_) => setState(() => _previewPoint = point),
         onPanUpdate: (DragUpdateDetails details) => onDrag(details.delta),
+        onPanEnd: (_) => setState(() => _previewPoint = null),
         child: Container(
           width: 28,
           height: 28,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white,
-            border: Border.all(color: accent, width: 3),
+            border: Border.all(color: widget.accent, width: 3),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x33000000),
@@ -1410,13 +1546,105 @@ class _InlineQuadCropOverlay extends StatelessWidget {
     );
   }
 
+  Widget _edgeHandle({
+    required Offset point,
+    required ValueChanged<Offset> onDrag,
+  }) {
+    return Positioned(
+      left: point.dx - 11,
+      top: point.dy - 11,
+      child: GestureDetector(
+        onPanStart: (_) => setState(() => _previewPoint = point),
+        onPanUpdate: (DragUpdateDetails details) => onDrag(details.delta),
+        onPanEnd: (_) => setState(() => _previewPoint = null),
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: widget.accent,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: Colors.white, width: 1.7),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoupe(Offset point) {
+    final double localX = (point.dx - widget.imageRect.left).clamp(
+      0.0,
+      widget.imageRect.width,
+    );
+    final double localY = (point.dy - widget.imageRect.top).clamp(
+      0.0,
+      widget.imageRect.height,
+    );
+    final double left = (point.dx - 44).clamp(8.0, widget.imageRect.right - 90);
+    final double top = (point.dy - 118).clamp(
+      8.0,
+      widget.imageRect.bottom - 90,
+    );
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: Container(
+        width: 88,
+        height: 88,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: widget.accent, width: 3),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x45000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Stack(
+            children: [
+              Transform.translate(
+                offset: Offset(-localX * 2 + 44, -localY * 2 + 44),
+                child: SizedBox(
+                  width: widget.imageRect.width * 2,
+                  height: widget.imageRect.height * 2,
+                  child: Image.file(
+                    File(widget.imagePath),
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+              const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.fromBorderSide(
+                        BorderSide(color: Colors.white, width: 1.4),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _updateCorner({required _QuadCorner corner, required Offset delta}) {
     const double minGap = 0.05;
 
-    NormalizedQuad next = quad;
+    NormalizedQuad next = _quad;
     final Offset normalizedDelta = Offset(
-      delta.dx / imageRect.width,
-      delta.dy / imageRect.height,
+      delta.dx / widget.imageRect.width,
+      delta.dy / widget.imageRect.height,
     );
 
     switch (corner) {
@@ -1464,13 +1692,72 @@ class _InlineQuadCropOverlay extends StatelessWidget {
       return;
     }
 
-    onChanged(next.clamped());
+    _setQuad(next.clamped());
+  }
+
+  void _updateEdge({required _Edge edge, required Offset delta}) {
+    const double minGap = 0.05;
+    final double dx = delta.dx / widget.imageRect.width;
+    final double dy = delta.dy / widget.imageRect.height;
+    NormalizedQuad next = _quad;
+
+    switch (edge) {
+      case _Edge.top:
+        final double newY = (_quad.topLeft.dy + dy).clamp(
+          0.0,
+          _quad.bottomLeft.dy - minGap,
+        );
+        next = next.copyWith(
+          topLeft: Offset(_quad.topLeft.dx, newY),
+          topRight: Offset(_quad.topRight.dx, newY),
+        );
+        break;
+      case _Edge.right:
+        final double newX = (_quad.topRight.dx + dx).clamp(
+          _quad.topLeft.dx + minGap,
+          1.0,
+        );
+        next = next.copyWith(
+          topRight: Offset(newX, _quad.topRight.dy),
+          bottomRight: Offset(newX, _quad.bottomRight.dy),
+        );
+        break;
+      case _Edge.bottom:
+        final double newY = (_quad.bottomLeft.dy + dy).clamp(
+          _quad.topLeft.dy + minGap,
+          1.0,
+        );
+        next = next.copyWith(
+          bottomLeft: Offset(_quad.bottomLeft.dx, newY),
+          bottomRight: Offset(_quad.bottomRight.dx, newY),
+        );
+        break;
+      case _Edge.left:
+        final double newX = (_quad.topLeft.dx + dx).clamp(
+          0.0,
+          _quad.topRight.dx - minGap,
+        );
+        next = next.copyWith(
+          topLeft: Offset(newX, _quad.topLeft.dy),
+          bottomLeft: Offset(newX, _quad.bottomLeft.dy),
+        );
+        break;
+    }
+
+    _setQuad(next.clamped());
+  }
+
+  void _setQuad(NormalizedQuad next) {
+    setState(() {
+      _quad = next;
+    });
+    widget.onChanged(next);
   }
 
   Offset _toScreen(Offset normalized) {
     return Offset(
-      imageRect.left + normalized.dx * imageRect.width,
-      imageRect.top + normalized.dy * imageRect.height,
+      widget.imageRect.left + normalized.dx * widget.imageRect.width,
+      widget.imageRect.top + normalized.dy * widget.imageRect.height,
     );
   }
 }
@@ -1534,6 +1821,8 @@ class _QuadOverlayPainter extends CustomPainter {
 }
 
 enum _QuadCorner { topLeft, topRight, bottomRight, bottomLeft }
+
+enum _Edge { top, right, bottom, left }
 
 extension on Offset {
   Offset clamp01() {

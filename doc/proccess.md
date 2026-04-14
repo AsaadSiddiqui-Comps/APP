@@ -64,3 +64,22 @@ THINGS TO FIX
 first make the background preprocessin to the image taken so all thing wil be fast and optimzed its laggin now for this 
 the rotating viusal will be shown os it will better by cliking to much time and it is also laggin to to rotate so we need to fix this
 improe the crop dragable dorping propelr it lagging 
+
+
+Things you have to fix first
+implement the cropping tool more better that the draging selector is lagging we want it smooth as fast as can like normal cropping done too fast but here it selector is to much laggy and when the cornner we holded on that it will show the samml preview also like  a modern terms do for editing like when we hold the coder o we cant able to see that till where we have to stop
+and make the selector tool more better it will have more 4 center of the line to strech it or long both
+
+second hing 
+is that when i click on rotate it will show the viusal cards of option active like filter from that user cna choose any , previent by cliking agianga and agian to rotate it
+adn disbale the toast notifiantion of rotte operation
+
+now on after done export setting here all options are givne so the that you have make that dsave to.. with export (estmatied size ( in mb))
+ and when export button cliked it wil export it 
+
+ now you have to install that pdfinum package whic wil make the pdf pile exproting process proerply or use best package sdk for this pdf operation more better 
+ in now stage it is show export fails try again i think oyu have not implemented that  
+ see fix it make it mcuh better
+ optimized better performance
+
+

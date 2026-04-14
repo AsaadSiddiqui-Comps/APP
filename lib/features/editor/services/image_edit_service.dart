@@ -123,6 +123,12 @@ class ImageEditService {
     return _persist(rotated, sourcePath, 'rot');
   }
 
+  static Future<String> rotateByDegrees(String sourcePath, int degrees) async {
+    final img.Image image = await _decode(sourcePath);
+    final img.Image rotated = img.copyRotate(image, angle: degrees);
+    return _persist(rotated, sourcePath, 'rot$degrees');
+  }
+
   static Future<String> applyFilter(
     String sourcePath,
     EditorFilterType filter,
