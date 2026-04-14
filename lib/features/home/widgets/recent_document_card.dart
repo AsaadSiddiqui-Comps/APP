@@ -1,0 +1,122 @@
+import 'package:flutter/material.dart';
+import '../../../core/constants/app_constants.dart';
+
+class RecentDocumentCard extends StatelessWidget {
+  final String title;
+  final String date;
+  final String pages;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+
+  const RecentDocumentCard({
+    Key? key,
+    required this.title,
+    required this.date,
+    required this.pages,
+    required this.onTap,
+    this.onDelete,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2B2A2F) : const Color(0xFFFAF8FC),
+          borderRadius: BorderRadius.circular(AppConstants.radiusMedium),
+          border: Border.all(
+            color: isDark ? const Color(0xFF49454E) : const Color(0xFFE7E0EC),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.spacingMedium),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF6750A4).withOpacity(0.2),
+                      const Color(0xFFBB86FC).withOpacity(0.1),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.picture_as_pdf,
+                    color: Color(0xFF6750A4),
+                    size: 24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppConstants.spacingMedium),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 12,
+                          color: isDark
+                              ? const Color(0xFFCAC7D0)
+                              : const Color(0xFF49454E),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          date,
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(
+                          Icons.description,
+                          size: 12,
+                          color: isDark
+                              ? const Color(0xFFCAC7D0)
+                              : const Color(0xFF49454E),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          pages,
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (onDelete != null)
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: onDelete,
+                  iconSize: 20,
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
