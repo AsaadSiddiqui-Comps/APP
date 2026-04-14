@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../services/document_export_service.dart';
@@ -443,35 +446,73 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
   }
 
   Future<void> _exportToDevicePdf() async {
-    final String? directory = await _selectDestinationFolder();
-    if (directory == null) {
+    final String? preferredDirectory = await _selectDestinationFolder();
+    if (preferredDirectory == null) {
       return;
     }
 
-    await _runExport(
-      () => DocumentExportService.exportPdf(
-        destinationDirectory: directory,
-        fileName: _documentName,
-        pages: widget.pages,
-      ),
-      successMessage: 'PDF saved to device.',
-    );
+    await _runExport(() async {
+      try {
+        await DocumentExportService.exportPdf(
+          destinationDirectory: preferredDirectory,
+          fileName: _documentName,
+          pages: widget.pages,
+        );
+      } catch (_) {
+        final Directory fallback =
+            await DocumentExportService.defaultExportDirectory();
+        await DocumentExportService.exportPdf(
+          destinationDirectory: fallback.path,
+          fileName: _documentName,
+          pages: widget.pages,
+        );
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Selected folder was not writable. Saved to ${fallback.path}',
+            ),
+          ),
+        );
+      }
+    }, successMessage: 'PDF saved to device.');
   }
 
   Future<void> _exportImages() async {
-    final String? directory = await _selectDestinationFolder();
-    if (directory == null) {
+    final String? preferredDirectory = await _selectDestinationFolder();
+    if (preferredDirectory == null) {
       return;
     }
 
-    await _runExport(
-      () => DocumentExportService.exportImages(
-        destinationDirectory: directory,
-        fileName: _documentName,
-        pages: widget.pages,
-      ),
-      successMessage: 'Images exported successfully.',
-    );
+    await _runExport(() async {
+      try {
+        await DocumentExportService.exportImages(
+          destinationDirectory: preferredDirectory,
+          fileName: _documentName,
+          pages: widget.pages,
+        );
+      } catch (_) {
+        final Directory fallback =
+            await DocumentExportService.defaultExportDirectory();
+        await DocumentExportService.exportImages(
+          destinationDirectory: fallback.path,
+          fileName: _documentName,
+          pages: widget.pages,
+        );
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Selected folder was not writable. Saved to ${fallback.path}',
+            ),
+          ),
+        );
+      }
+    }, successMessage: 'Images exported successfully.');
   }
 
   Future<void> _runExport(
@@ -494,13 +535,13 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
-    } catch (_) {
+    } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Export failed. Try again.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -515,12 +556,10 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
       return _destinationDirectory;
     }
 
-    final String? directory = await FilePicker.platform.getDirectoryPath(
+    String? directory = await FilePicker.platform.getDirectoryPath(
       dialogTitle: 'Choose destination folder',
     );
-    if (directory == null) {
-      return null;
-    }
+    directory ??= (await getApplicationDocumentsDirectory()).path;
 
     setState(() {
       _destinationDirectory = directory;
