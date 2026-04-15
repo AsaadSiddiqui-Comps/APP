@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../models/camera_capture_result.dart';
@@ -32,7 +32,6 @@ class CameraCaptureScreen extends StatefulWidget {
 
 class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
   CameraController? _controller;
-  final ImagePicker _imagePicker = ImagePicker();
   bool _isLoading = true;
   bool _isBatchMode = false;
   bool _isTakingPicture = false;
@@ -169,9 +168,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
 
     try {
       if (_isBatchMode) {
-        final List<XFile> images = await _imagePicker.pickMultiImage(
-          imageQuality: 90,
+        final FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: true,
         );
+        final List<XFile> images = (result?.files ?? <PlatformFile>[])
+            .where((PlatformFile file) => file.path != null)
+            .map((PlatformFile file) => XFile(file.path!))
+            .toList(growable: false);
 
         if (images.isEmpty || !mounted) {
           return;
@@ -186,10 +190,14 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen> {
           _capturedImages.addAll(images);
         });
       } else {
-        final XFile? image = await _imagePicker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 90,
+        final FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
         );
+        final String? selectedPath = (result != null && result.files.isNotEmpty)
+            ? result.files.first.path
+            : null;
+        final XFile? image = selectedPath == null ? null : XFile(selectedPath);
 
         if (image == null || !mounted) {
           return;

@@ -16,10 +16,7 @@ class DocumentStorageService {
       return;
     }
 
-    final Directory baseDir = await getApplicationDocumentsDirectory();
-    final Directory root = Directory(
-      '${baseDir.path}${Platform.pathSeparator}my_app',
-    );
+    final Directory root = await _resolveRootDirectory();
     final Directory drafts = Directory(
       '${root.path}${Platform.pathSeparator}drafts',
     );
@@ -34,6 +31,43 @@ class DocumentStorageService {
     _rootDir = root;
     _draftsDir = drafts;
     _exportedDir = exported;
+  }
+
+  Future<Directory> _resolveRootDirectory() async {
+    if (Platform.isAndroid) {
+      final List<String> candidates = <String>[
+        '/storage/emulated/0/my_app',
+        '/sdcard/my_app',
+      ];
+
+      for (final String candidate in candidates) {
+        final Directory dir = Directory(candidate);
+        try {
+          await dir.create(recursive: true);
+          if (await _isWritable(dir)) {
+            return dir;
+          }
+        } catch (_) {
+          // Try the next candidate.
+        }
+      }
+    }
+
+    final Directory baseDir = await getApplicationDocumentsDirectory();
+    return Directory('${baseDir.path}${Platform.pathSeparator}my_app');
+  }
+
+  Future<bool> _isWritable(Directory directory) async {
+    final String probePath =
+        '${directory.path}${Platform.pathSeparator}.write_probe';
+    final File probe = File(probePath);
+    try {
+      await probe.writeAsString('ok', flush: true);
+      await probe.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<Directory> getDraftsDir() async {

@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../camera/screens/camera_capture_screen.dart';
@@ -20,7 +20,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -571,9 +570,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openGalleryEditor() async {
-    final List<XFile> images = await _imagePicker.pickMultiImage(
-      imageQuality: 90,
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
     );
+    final List<XFile> images = (result?.files ?? <PlatformFile>[])
+        .where((PlatformFile file) => file.path != null)
+        .map((PlatformFile file) => XFile(file.path!))
+        .toList(growable: false);
     if (images.isEmpty || !mounted) {
       return;
     }

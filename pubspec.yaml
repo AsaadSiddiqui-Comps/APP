@@ -38,7 +38,6 @@ dependencies:
   # Image and file handling
   camera: ^0.11.1
   file_picker: ^8.1.7
-  image_picker: ^1.0.7
   path_provider: ^2.1.4
   permission_handler: ^12.0.1
   

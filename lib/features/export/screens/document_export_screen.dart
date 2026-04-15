@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../services/document_export_service.dart';
@@ -446,10 +445,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
   }
 
   Future<void> _exportToDevicePdf() async {
-    final String? preferredDirectory = await _selectDestinationFolder();
-    if (preferredDirectory == null) {
-      return;
-    }
+    final String preferredDirectory = await _selectDestinationFolder();
 
     await _runExport(() async {
       try {
@@ -481,10 +477,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
   }
 
   Future<void> _exportImages() async {
-    final String? preferredDirectory = await _selectDestinationFolder();
-    if (preferredDirectory == null) {
-      return;
-    }
+    final String preferredDirectory = await _selectDestinationFolder();
 
     await _runExport(() async {
       try {
@@ -551,20 +544,18 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
     }
   }
 
-  Future<String?> _selectDestinationFolder() async {
+  Future<String> _selectDestinationFolder() async {
     if (_destinationDirectory != null) {
-      return _destinationDirectory;
+      return _destinationDirectory!;
     }
 
-    String? directory = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Choose destination folder',
-    );
-    directory ??= (await getApplicationDocumentsDirectory()).path;
+    final Directory directory =
+        await DocumentExportService.defaultExportDirectory();
 
     setState(() {
-      _destinationDirectory = directory;
+      _destinationDirectory = directory.path;
     });
-    return directory;
+    return directory.path;
   }
 
   Future<void> _chooseDestination() async {
