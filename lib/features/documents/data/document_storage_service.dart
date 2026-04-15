@@ -98,6 +98,42 @@ class DocumentStorageService {
     return _exportedDir!;
   }
 
+  /// Resolve Downloads export location with SAF-first strategy.
+  /// 1) Use user-picked Downloads folder (SAF) when available and writable.
+  /// 2) Try direct Downloads path on Android when writable.
+  /// 3) Fallback to app export directory.
+  Future<Directory> getBestDownloadsDirectory({String? safPath}) async {
+    await ensureDirectories();
+
+    if (safPath != null && safPath.isNotEmpty) {
+      final Directory safDir = Directory(safPath);
+      try {
+        await safDir.create(recursive: true);
+        if (await _isWritable(safDir)) {
+          return safDir;
+        }
+      } catch (_) {
+        // Try fallback
+      }
+    }
+
+    if (Platform.isAndroid) {
+      try {
+        final Directory downloadsDir = Directory(
+          '/storage/emulated/0/Download${Platform.pathSeparator}my_app',
+        );
+        await downloadsDir.create(recursive: true);
+        if (await _isWritable(downloadsDir)) {
+          return downloadsDir;
+        }
+      } catch (_) {
+        // Try fallback
+      }
+    }
+
+    return _exportedDir!;
+  }
+
   /// Trigger media scanner to make file visible in file managers, gallery, etc.
   /// Call this after saving a file
   Future<void> scanFile(String filePath) async {

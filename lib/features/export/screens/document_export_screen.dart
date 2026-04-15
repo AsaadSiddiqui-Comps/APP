@@ -1,12 +1,19 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../documents/data/document_storage_service.dart';
 import '../services/document_export_service.dart';
+
+enum ExportDestinationType { appStorage, customFolder, downloads }
+
+enum SaveAsAction { appStorage, chooseFolder, downloads, share }
 
 class DocumentExportScreen extends StatefulWidget {
   const DocumentExportScreen({
@@ -23,9 +30,16 @@ class DocumentExportScreen extends StatefulWidget {
 }
 
 class _DocumentExportScreenState extends State<DocumentExportScreen> {
+  static const String _prefDestinationMode = 'export.destination.mode';
+  static const String _prefCustomFolder = 'export.destination.custom_folder';
+  static const String _prefDownloadsFolder =
+      'export.destination.downloads_folder';
+
   bool _isExporting = false;
   ExportFormat _selectedExportFormat = ExportFormat.pdf;
+  ExportDestinationType _destinationType = ExportDestinationType.appStorage;
   String? _destinationDirectory;
+  String? _downloadsDirectory;
   late String _documentName;
   double _estimatedSizeMb = 0;
 
@@ -34,6 +48,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
     super.initState();
     _documentName = widget.documentName;
     _refreshEstimate();
+    _loadSavedDestination();
   }
 
   @override
@@ -213,9 +228,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _destinationDirectory == null
-                                          ? 'App Storage (Default)'
-                                          : 'Custom Folder',
+                                      _destinationTitle(),
                                       maxLines: 1,
                                       style: Theme.of(context)
                                           .textTheme
@@ -224,9 +237,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      _destinationDirectory == null
-                                          ? 'Files will be saved in app folder'
-                                          : _destinationDirectory!,
+                                      _destinationSubtitle(),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context)
@@ -240,7 +251,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                               TextButton(
                                 onPressed: _isExporting
                                     ? null
-                                    : _chooseDestination,
+                                    : _showSaveAsBottomSheet,
                                 child: const Text('Change'),
                               ),
                             ],
@@ -338,7 +349,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: _isExporting ? null : _chooseDestination,
+                  onPressed: _isExporting ? null : _showSaveAsBottomSheet,
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 54),
                     shape: RoundedRectangleBorder(
@@ -462,32 +473,184 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
     }
   }
 
+  Future<void> _loadSavedDestination() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? mode = prefs.getString(_prefDestinationMode);
+    final String? customFolder = prefs.getString(_prefCustomFolder);
+    final String? downloadsFolder = prefs.getString(_prefDownloadsFolder);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _destinationDirectory = customFolder;
+      _downloadsDirectory = downloadsFolder;
+
+      switch (mode) {
+        case 'custom':
+          _destinationType = ExportDestinationType.customFolder;
+          break;
+        case 'downloads':
+          _destinationType = ExportDestinationType.downloads;
+          break;
+        default:
+          _destinationType = ExportDestinationType.appStorage;
+      }
+    });
+  }
+
+  Future<void> _saveDestinationState() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    String mode;
+    switch (_destinationType) {
+      case ExportDestinationType.customFolder:
+        mode = 'custom';
+        break;
+      case ExportDestinationType.downloads:
+        mode = 'downloads';
+        break;
+      case ExportDestinationType.appStorage:
+        mode = 'app';
+        break;
+    }
+    await prefs.setString(_prefDestinationMode, mode);
+
+    if (_destinationDirectory != null && _destinationDirectory!.isNotEmpty) {
+      await prefs.setString(_prefCustomFolder, _destinationDirectory!);
+    }
+
+    if (_downloadsDirectory != null && _downloadsDirectory!.isNotEmpty) {
+      await prefs.setString(_prefDownloadsFolder, _downloadsDirectory!);
+    }
+  }
+
+  String _destinationTitle() {
+    switch (_destinationType) {
+      case ExportDestinationType.customFolder:
+        return 'Custom Folder';
+      case ExportDestinationType.downloads:
+        return 'Downloads';
+      case ExportDestinationType.appStorage:
+        return 'App Storage (Default)';
+    }
+  }
+
+  String _destinationSubtitle() {
+    switch (_destinationType) {
+      case ExportDestinationType.customFolder:
+        return _destinationDirectory ?? 'No folder selected';
+      case ExportDestinationType.downloads:
+        return _downloadsDirectory ??
+            'Will use Downloads when available, else app folder';
+      case ExportDestinationType.appStorage:
+        return 'Files will be saved in app folder';
+    }
+  }
+
+  Future<void> _showSaveAsBottomSheet() async {
+    if (_isExporting) {
+      return;
+    }
+
+    final SaveAsAction? action = await showModalBottomSheet<SaveAsAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ListTile(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 4),
+                  title: Text(
+                    'Save As',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text('Choose where to export this document.'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.check_circle_outline),
+                  title: const Text('Default (App Storage)'),
+                  onTap: () =>
+                      Navigator.of(context).pop(SaveAsAction.appStorage),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.folder_open_outlined),
+                  title: const Text('Choose Folder'),
+                  onTap: () =>
+                      Navigator.of(context).pop(SaveAsAction.chooseFolder),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.download_outlined),
+                  title: const Text('Save to Downloads'),
+                  subtitle: const Text(
+                    'SAF folder first, safe fallback if needed',
+                  ),
+                  onTap: () =>
+                      Navigator.of(context).pop(SaveAsAction.downloads),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share_outlined),
+                  title: const Text('Share'),
+                  onTap: () => Navigator.of(context).pop(SaveAsAction.share),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (action == null || !mounted) {
+      return;
+    }
+
+    await _applySaveAsAction(action);
+  }
+
+  Future<void> _applySaveAsAction(SaveAsAction action) async {
+    switch (action) {
+      case SaveAsAction.appStorage:
+        setState(() {
+          _destinationType = ExportDestinationType.appStorage;
+        });
+        await _saveDestinationState();
+        break;
+      case SaveAsAction.chooseFolder:
+        await _chooseDestination();
+        break;
+      case SaveAsAction.downloads:
+        await _chooseDownloadsDestination();
+        break;
+      case SaveAsAction.share:
+        await _shareNow();
+        break;
+    }
+  }
+
   Future<void> _exportToDevicePdf() async {
     final String preferredDirectory = await _selectDestinationFolder();
 
     await _runExport(() async {
       try {
-        await DocumentExportService.exportPdf(
+        final String exportedPath = await DocumentExportService.exportPdf(
           destinationDirectory: preferredDirectory,
           fileName: _documentName,
           pages: widget.pages,
         );
-        // ✅ Scan file to make it visible in file managers
-        await DocumentStorageService.instance.scanFile(
-          '$preferredDirectory/${_documentName}.pdf',
-        );
+        await DocumentStorageService.instance.scanFile(exportedPath);
       } catch (_) {
         final Directory fallback = await DocumentStorageService.instance
-            .getBestExportDirectory(customPath: _destinationDirectory);
-        await DocumentExportService.exportPdf(
+            .getBestExportDirectory();
+        final String fallbackPath = await DocumentExportService.exportPdf(
           destinationDirectory: fallback.path,
           fileName: _documentName,
           pages: widget.pages,
         );
-        // ✅ Scan fallback file
-        await DocumentStorageService.instance.scanFile(
-          '${fallback.path}/${_documentName}.pdf',
-        );
+        await DocumentStorageService.instance.scanFile(fallbackPath);
 
         if (!mounted) {
           return;
@@ -509,23 +672,27 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
 
     await _runExport(() async {
       try {
-        await DocumentExportService.exportImages(
-          destinationDirectory: preferredDirectory,
-          fileName: _documentName,
-          pages: widget.pages,
-        );
-        // ✅ Scan folder to make images visible
-        await DocumentStorageService.instance.scanFile(preferredDirectory);
+        final List<String> outputPaths =
+            await DocumentExportService.exportImages(
+              destinationDirectory: preferredDirectory,
+              fileName: _documentName,
+              pages: widget.pages,
+            );
+        for (final String path in outputPaths) {
+          await DocumentStorageService.instance.scanFile(path);
+        }
       } catch (_) {
         final Directory fallback = await DocumentStorageService.instance
-            .getBestExportDirectory(customPath: _destinationDirectory);
-        await DocumentExportService.exportImages(
-          destinationDirectory: fallback.path,
-          fileName: _documentName,
-          pages: widget.pages,
-        );
-        // ✅ Scan fallback folder
-        await DocumentStorageService.instance.scanFile(fallback.path);
+            .getBestExportDirectory();
+        final List<String> outputPaths =
+            await DocumentExportService.exportImages(
+              destinationDirectory: fallback.path,
+              fileName: _documentName,
+              pages: widget.pages,
+            );
+        for (final String path in outputPaths) {
+          await DocumentStorageService.instance.scanFile(path);
+        }
 
         if (!mounted) {
           return;
@@ -579,17 +746,31 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
   }
 
   Future<String> _selectDestinationFolder() async {
-    if (_destinationDirectory != null) {
-      return _destinationDirectory!;
+    if (_destinationType == ExportDestinationType.customFolder) {
+      final Directory bestDir = await DocumentStorageService.instance
+          .getBestExportDirectory(customPath: _destinationDirectory);
+      if (_destinationDirectory == null && mounted) {
+        setState(() {
+          _destinationDirectory = bestDir.path;
+        });
+      }
+      return bestDir.path;
     }
 
-    // Use app-specific external storage (Android 11+ safe, no permission needed)
+    if (_destinationType == ExportDestinationType.downloads) {
+      final Directory bestDir = await DocumentStorageService.instance
+          .getBestDownloadsDirectory(safPath: _downloadsDirectory);
+      if (_downloadsDirectory == null && mounted) {
+        setState(() {
+          _downloadsDirectory = bestDir.path;
+        });
+        await _saveDestinationState();
+      }
+      return bestDir.path;
+    }
+
     final Directory bestDir = await DocumentStorageService.instance
         .getBestExportDirectory();
-
-    setState(() {
-      _destinationDirectory = bestDir.path;
-    });
     return bestDir.path;
   }
 
@@ -603,21 +784,96 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
     }
 
     setState(() {
+      _destinationType = ExportDestinationType.customFolder;
       _destinationDirectory = selectedDir;
     });
+    await _saveDestinationState();
 
     if (!mounted) return;
 
-    // Note: Files will be saved to selected folder if accessible,
-    // otherwise they'll automatically fallback to app storage.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text(
-          'Folder selected. Files will be saved here if accessible.',
-        ),
+        content: Text('Folder selected: $selectedDir'),
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  Future<void> _chooseDownloadsDestination() async {
+    String? selectedDownloadsDir = _downloadsDirectory;
+
+    if (selectedDownloadsDir == null || selectedDownloadsDir.isEmpty) {
+      selectedDownloadsDir = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Downloads folder (recommended)',
+      );
+    }
+
+    setState(() {
+      _destinationType = ExportDestinationType.downloads;
+      if (selectedDownloadsDir != null && selectedDownloadsDir.isNotEmpty) {
+        _downloadsDirectory = selectedDownloadsDir;
+      }
+    });
+
+    await _saveDestinationState();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          selectedDownloadsDir == null
+              ? 'Downloads selected. If direct Downloads is unavailable, app storage will be used.'
+              : 'Downloads folder selected. Export will use this folder when accessible.',
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _shareNow() async {
+    await _runExport(() async {
+      final Directory shareDir = await DocumentStorageService.instance
+          .getBestExportDirectory();
+
+      if (_selectedExportFormat == ExportFormat.pdf) {
+        final String pdfPath = await DocumentExportService.exportPdf(
+          destinationDirectory: shareDir.path,
+          fileName: _documentName,
+          pages: widget.pages,
+        );
+        final File file = File(pdfPath);
+        final Uint8List bytes = await file.readAsBytes();
+        await DocumentStorageService.instance.scanFile(pdfPath);
+        await Printing.sharePdf(
+          bytes: bytes,
+          filename: file.uri.pathSegments.last,
+        );
+        return;
+      }
+
+      final String pdfPath = await DocumentExportService.exportPdf(
+        destinationDirectory: shareDir.path,
+        fileName: _documentName,
+        pages: widget.pages,
+      );
+      final File file = File(pdfPath);
+      final Uint8List bytes = await file.readAsBytes();
+      await DocumentStorageService.instance.scanFile(pdfPath);
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: file.uri.pathSegments.last,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shared as PDF for better compatibility.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }, successMessage: 'Share opened successfully.');
   }
 
   Future<void> _refreshEstimate() async {

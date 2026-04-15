@@ -11,6 +11,8 @@ This document lists the active packages used in the app and what each one does i
 - file_picker: Folder selection for export destination and image picking from device files/gallery sources.
 - path_provider: Gets safe app directories and helps resolve fallback storage paths.
 - permission_handler: Requests runtime permissions (camera, photos) and can open app settings.
+- media_scanner: Triggers media indexing after export so files appear in My Files, PDF apps, and Gallery.
+- shared_preferences: Persists selected export folder and related export options across app restarts.
 
 ## Document Creation and Processing
 - image: Image decoding, resize, and JPEG re-encoding before PDF generation to improve stability and output size.
@@ -43,6 +45,8 @@ This document lists the active packages used in the app and what each one does i
 - If not granted, the app still works—exports go to the app's `my_app/exported` folder.
 - User can enable this in Settings later for more export destinations.
 
+Note: This permission should remain optional. For production and Play Store safety, primary export should rely on app-specific storage, file picker (SAF), and media scanning.
+
 ### Storage Paths (Android 11+)
 
 #### Default Storage Location
@@ -72,8 +76,8 @@ This document lists the active packages used in the app and what each one does i
 
 #### Optional Public Export (Android Only)
 - Path: `/storage/emulated/0/Download/my_app/`
-- Only available if user has granted "All Files Access" permission
-- User must enable this manually in Settings > Apps > My App > Permissions > All files access
+- Direct path usage is risky on Android 11+ unless SAF or MediaStore is used
+- Prefer file picker destination selection (SAF) or MediaStore-based save flows for Downloads
 
 ### Why This Works on Android 11+
 
@@ -105,14 +109,51 @@ This document lists the active packages used in the app and what each one does i
 
 - **Default (No Selection)**: Exports go to `/storage/emulated/0/Android/data/<package>/files/my_app/exported/`
 - **Custom Folder Selected**: Tries selected folder; if fails, fallback to default with message
-- **All Files Access Enabled**: User can additionally export to `/storage/emulated/0/Download/my_app/`
-- **File Accessibility**: Once user picks a folder via file picker, the system remembers access permission for that folder
+- **Downloads Mode Selected**: Uses SAF-selected Downloads folder first, then tries `/storage/emulated/0/Download/my_app/` if writable, then falls back to app export folder
+- **File Accessibility**: Exported files are scanned with media scanner so they appear in file managers and viewer apps
+- **Selection Persistence**: Destination mode and selected paths are restored on next app launch using SharedPreferences
+
+### Premium Export Experience (Implemented)
+
+The app now includes a full Save As flow and reliable destination handling.
+
+1. **File Visibility UX**
+- After successful export, media scanner is triggered on exported output paths.
+- PDF export scans the saved PDF file path.
+- Image export scans each exported image file path.
+- Outcome: Files appear in My Files, PDF apps, and Gallery faster on Android 13+.
+
+2. **Export Options UX (Save As Bottom Sheet)**
+- Save As sheet includes all 4 actions:
+   - Default (App Storage)
+   - Choose Folder
+   - Save to Downloads
+   - Share
+- Both destination change actions route through this same sheet for consistent UX.
+
+3. **Persistent Folder Selection**
+- Destination mode is persisted (app storage, custom folder, downloads).
+- Custom folder path and Downloads SAF path are saved with SharedPreferences.
+- On next export, the app restores mode and attempts saved paths first.
+- If path is no longer writable, export falls back safely to app storage.
+
+4. **Downloads Strategy Hardening (SAF-first)**
+- Downloads mode uses this order:
+   - SAF folder picked by user (preferred)
+   - Direct `/storage/emulated/0/Download/my_app` only if writable
+   - App export folder fallback
+- This reduces failures on scoped storage devices while keeping practical fallback behavior.
+
+5. **Share Path**
+- Save As includes Share action.
+- Share generates PDF output and opens platform share UI.
+- If image mode is selected, sharing still uses PDF for compatibility across receiving apps.
 
 ### Viewing Exported Files on Device
 
 1. **On Samsung**: Open **My Files** > **Android** > **data** > **com.example.my_app** > **files** > **my_app**
 2. **On Stock Android**: Use a file manager app, navigate to `/Android/data/<package>/files/my_app`
-3. **If Public Export Enabled**: Files also appear in **Downloads** > **my_app** folder
+3. **If Downloads Mode Is Used**: Files can appear in **Downloads** > **my_app** when Downloads destination is writable/selected
 4. **Via USB Cable**: Connect phone to PC, navigate to `Internal Storage/Android/data/<package>/files/my_app/`
 
 
