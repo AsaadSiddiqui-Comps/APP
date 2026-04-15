@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:media_scanner/media_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -7,6 +8,9 @@ class DocumentStorageService {
   DocumentStorageService._();
 
   static final DocumentStorageService instance = DocumentStorageService._();
+  static const MethodChannel _storageChannel = MethodChannel(
+    'com.example.my_app/storage',
+  );
 
   Directory? _rootDir;
   Directory? _draftsDir;
@@ -142,6 +146,45 @@ class DocumentStorageService {
     } catch (_) {
       // Media scanner not available, file will still be saved
     }
+  }
+
+  /// Save a generated file into public Downloads/my_app (Android) so users can
+  /// access it from recent files and file managers.
+  /// Falls back to a writable directory if platform save fails.
+  Future<String> saveFileToPublicDownloads({
+    required String sourcePath,
+    required String displayName,
+    required String mimeType,
+  }) async {
+    final File source = File(sourcePath);
+    if (!await source.exists()) {
+      throw Exception('Source file not found: $sourcePath');
+    }
+
+    if (Platform.isAndroid) {
+      try {
+        final String? savedLocation = await _storageChannel
+            .invokeMethod<String>('saveFileToDownloads', <String, dynamic>{
+              'sourcePath': sourcePath,
+              'displayName': displayName,
+              'mimeType': mimeType,
+              'subFolder': 'my_app',
+            });
+
+        if (savedLocation != null && savedLocation.isNotEmpty) {
+          return savedLocation;
+        }
+      } catch (_) {
+        // Fallback to path-based strategy below.
+      }
+    }
+
+    final Directory fallbackDir = await getBestDownloadsDirectory();
+    final String targetPath =
+        '${fallbackDir.path}${Platform.pathSeparator}$displayName';
+    await source.copy(targetPath);
+    await scanFile(targetPath);
+    return targetPath;
   }
 
   Future<Directory> getDraftsDir() async {

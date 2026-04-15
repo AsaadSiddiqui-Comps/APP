@@ -103,3 +103,26 @@ second is let user select the destination folder at that it donest show the that
 
 we are using Android verison 11+
 
+
+it is saving the files here 
+/sdcard/Android/data/com.example.my_app/files/my_app/exported
+so one thing is fixed 
+
+now the next issue is still remianig that whne choosing custom folder 
+first it show the selected fodler is inaccessible and saved to  this /sdcard/Android/data/com.example.my_app/files/my_app/exported
+
+so i have think this that 
+we have two buttons one save to.. and one export
+
+so change this save to.. = {icon} share
+
+
+and remove he save as menue  and the destination will be fixed to app defualt storage, it will export it on this location only 
+/sdcard/Android/data/com.example.my_app/files/my_app/exported
+
+but now let make this that all pdf is exproted on this path just now we have to make that the pdf can be accessable from recent files so  or make it that like normal browser downlado the files on download folder so just you have to make that it will epxort it on downlaod folder by defualt so it will be proepr and accesable path from mobile
+
+the thing is /sdcard/Android/data/com.example.my_app/files/my_app/exported
+ this path is nto accessble by mobile bez of security in android 14+ so we have to make it proepr that it should export it to downlaod
+
+Searhc ofr better solution
