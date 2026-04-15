@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:media_scanner/media_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 
 class DocumentStorageService {
@@ -35,24 +36,27 @@ class DocumentStorageService {
 
   Future<Directory> _resolveRootDirectory() async {
     if (Platform.isAndroid) {
-      final List<String> candidates = <String>[
-        '/storage/emulated/0/my_app',
-        '/sdcard/my_app',
-      ];
+      try {
+        // ✅ BEST: App-specific external storage (no permission needed, Android 11+ safe)
+        final Directory? externalDir = await getExternalStorageDirectory();
 
-      for (final String candidate in candidates) {
-        final Directory dir = Directory(candidate);
-        try {
-          await dir.create(recursive: true);
-          if (await _isWritable(dir)) {
-            return dir;
+        if (externalDir != null) {
+          final Directory appDir = Directory(
+            '${externalDir.path}${Platform.pathSeparator}my_app',
+          );
+
+          await appDir.create(recursive: true);
+
+          if (await _isWritable(appDir)) {
+            return appDir;
           }
-        } catch (_) {
-          // Try the next candidate.
         }
+      } catch (_) {
+        // Try fallback
       }
     }
 
+    // ✅ Fallback: App Documents (always works)
     final Directory baseDir = await getApplicationDocumentsDirectory();
     return Directory('${baseDir.path}${Platform.pathSeparator}my_app');
   }
@@ -67,6 +71,40 @@ class DocumentStorageService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Get best export directory
+  /// [customPath] = user-selected folder from file picker (SAF)
+  /// If customPath is provided and writable, use it; otherwise fallback to app storage
+  Future<Directory> getBestExportDirectory({String? customPath}) async {
+    await ensureDirectories();
+
+    // ✅ If user selected folder via file picker (BEST option)
+    if (customPath != null && customPath.isNotEmpty) {
+      final dir = Directory(customPath);
+
+      try {
+        await dir.create(recursive: true);
+        if (await _isWritable(dir)) {
+          return dir;
+        }
+      } catch (_) {
+        // Try fallback
+      }
+    }
+
+    // ✅ Fallback to safe app storage
+    return _exportedDir!;
+  }
+
+  /// Trigger media scanner to make file visible in file managers, gallery, etc.
+  /// Call this after saving a file
+  Future<void> scanFile(String filePath) async {
+    try {
+      await MediaScanner.loadMedia(path: filePath);
+    } catch (_) {
+      // Media scanner not available, file will still be saved
     }
   }
 

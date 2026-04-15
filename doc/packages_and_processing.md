@@ -43,25 +43,48 @@ This document lists the active packages used in the app and what each one does i
 - If not granted, the app still works—exports go to the app's `my_app/exported` folder.
 - User can enable this in Settings later for more export destinations.
 
-### Storage Paths
+### Storage Paths (Android 11+)
 
-#### Draft Storage
-- Path: `my_app/drafts`
-- Purpose: Stores in-progress document scans and edits.
-- Writable: Always (no special permission needed).
+#### Default Storage Location
+**Path:** `/storage/emulated/0/Android/data/<package>/files/my_app/`
 
-#### Export Storage
-- Path: `my_app/exported`
-- Purpose: Stores finalized exported files (PDF or images).
-- Writable: Always (no special permission needed).
-- **Default behavior**: If user doesn't select an export destination, files go here.
+- Obtained via `getExternalStorageDirectory()` (Android-compliant method)
+- **No special permission needed** (safe on Android 11+)
+- **Accessible** in Samsung My Files > Android/data (folder hidden but accessible)
+- Automatically cleaned up when app is uninstalled
+- **Files saved here are persistent** across device reboots
 
-#### Android Storage Details
-On Android 11+, the app uses **scoped storage** by default:
-- App has dedicated private storage that no app-specific permission is needed to write to.
-- If "All Files Access" (MANAGE_EXTERNAL_STORAGE) is enabled by user, the app can save to broader locations like `/storage/emulated/0/my_app`.
-- File picker (destination selection) lets users pick folders without needing special permissions.
-- Falls back gracefully to app storage if selected destination is not writable.
+#### Draft Storage (Default)
+- Full Path: `/storage/emulated/0/Android/data/<package>/files/my_app/drafts`
+- Purpose: Stores in-progress document scans and edits
+- Writable: Always (no special permission needed)
+
+#### Export Storage (Default)
+- Full Path: `/storage/emulated/0/Android/data/<package>/files/my_app/exported`
+- Purpose: Stores finalized exported files (PDF or images)
+- Writable: Always (no special permission needed)
+- **Default behavior**: If user doesn't select an export destination, files go here
+
+#### Custom Export Location (Optional)
+- User can tap **"Change"** button to pick any folder
+- File picker lets users select any writable folder without needing MANAGE_EXTERNAL_STORAGE
+- If selected folder becomes inaccessible, fallback to default export folder automatically
+
+#### Optional Public Export (Android Only)
+- Path: `/storage/emulated/0/Download/my_app/`
+- Only available if user has granted "All Files Access" permission
+- User must enable this manually in Settings > Apps > My App > Permissions > All files access
+
+### Why This Works on Android 11+
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| **Direct public paths** | ❌ Blocked | `/storage/emulated/0/my_app` doesn't work reliably |
+| **App-specific external** | ✅ Safe | `getExternalStorageDirectory()` always writable, no permission needed |
+| **Optional permissions** | ✅ Flexible | User can enable storage access later if desired |
+| **File picker support** | ✅ Works | Folder selection without needing broad permissions |
+| **Scoped storage** | ✅ Compliant | Follows Android's purpose-based storage model |
+| **Fallback logic** | ✅ Robust | Automatically uses safe storage if selected folder fails |
 
 #### iOS Storage Details
 - Photos and gallery import use the standard Photos framework.
@@ -80,8 +103,16 @@ On Android 11+, the app uses **scoped storage** by default:
 
 ### Export Behavior
 
-- **Without All Files Access**: Exports go to `my_app/exported` automatically.
-- **With All Files Access**: User can pick any writable folder; if it fails, fallback to `my_app/exported` with a snackbar message.
-- **File Picker**: Once user selects a folder for export, file picker remembers it; no need for all-files permission if the folder is accessible.
+- **Default (No Selection)**: Exports go to `/storage/emulated/0/Android/data/<package>/files/my_app/exported/`
+- **Custom Folder Selected**: Tries selected folder; if fails, fallback to default with message
+- **All Files Access Enabled**: User can additionally export to `/storage/emulated/0/Download/my_app/`
+- **File Accessibility**: Once user picks a folder via file picker, the system remembers access permission for that folder
+
+### Viewing Exported Files on Device
+
+1. **On Samsung**: Open **My Files** > **Android** > **data** > **com.example.my_app** > **files** > **my_app**
+2. **On Stock Android**: Use a file manager app, navigate to `/Android/data/<package>/files/my_app`
+3. **If Public Export Enabled**: Files also appear in **Downloads** > **my_app** folder
+4. **Via USB Cable**: Connect phone to PC, navigate to `Internal Storage/Android/data/<package>/files/my_app/`
 
 

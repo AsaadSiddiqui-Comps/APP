@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../documents/data/document_storage_service.dart';
 import '../services/document_export_service.dart';
 
 class DocumentExportScreen extends StatefulWidget {
@@ -208,15 +209,32 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                               Icon(Icons.folder_outlined, color: accent),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(
-                                  _destinationDirectory == null
-                                      ? 'Choose a destination folder'
-                                      : _destinationDirectory!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodyMedium?.copyWith(color: text),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _destinationDirectory == null
+                                          ? 'App Storage (Default)'
+                                          : 'Custom Folder',
+                                      maxLines: 1,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(color: sub),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _destinationDirectory == null
+                                          ? 'Files will be saved in app folder'
+                                          : _destinationDirectory!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(color: text),
+                                    ),
+                                  ],
                                 ),
                               ),
                               TextButton(
@@ -454,26 +472,36 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
           fileName: _documentName,
           pages: widget.pages,
         );
+        // ✅ Scan file to make it visible in file managers
+        await DocumentStorageService.instance.scanFile(
+          '$preferredDirectory/${_documentName}.pdf',
+        );
       } catch (_) {
-        final Directory fallback =
-            await DocumentExportService.defaultExportDirectory();
+        final Directory fallback = await DocumentStorageService.instance
+            .getBestExportDirectory(customPath: _destinationDirectory);
         await DocumentExportService.exportPdf(
           destinationDirectory: fallback.path,
           fileName: _documentName,
           pages: widget.pages,
         );
+        // ✅ Scan fallback file
+        await DocumentStorageService.instance.scanFile(
+          '${fallback.path}/${_documentName}.pdf',
+        );
+
         if (!mounted) {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Selected folder was not writable. Saved to ${fallback.path}',
+              'Selected folder not accessible. Saved to: ${fallback.path}',
             ),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
-    }, successMessage: 'PDF saved to device.');
+    }, successMessage: 'PDF exported successfully to: $preferredDirectory');
   }
 
   Future<void> _exportImages() async {
@@ -486,26 +514,32 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
           fileName: _documentName,
           pages: widget.pages,
         );
+        // ✅ Scan folder to make images visible
+        await DocumentStorageService.instance.scanFile(preferredDirectory);
       } catch (_) {
-        final Directory fallback =
-            await DocumentExportService.defaultExportDirectory();
+        final Directory fallback = await DocumentStorageService.instance
+            .getBestExportDirectory(customPath: _destinationDirectory);
         await DocumentExportService.exportImages(
           destinationDirectory: fallback.path,
           fileName: _documentName,
           pages: widget.pages,
         );
+        // ✅ Scan fallback folder
+        await DocumentStorageService.instance.scanFile(fallback.path);
+
         if (!mounted) {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Selected folder was not writable. Saved to ${fallback.path}',
+              'Selected folder not accessible. Saved to: ${fallback.path}',
             ),
+            duration: const Duration(seconds: 4),
           ),
         );
       }
-    }, successMessage: 'Images exported successfully.');
+    }, successMessage: 'Images exported successfully to: $preferredDirectory');
   }
 
   Future<void> _runExport(
@@ -549,26 +583,41 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
       return _destinationDirectory!;
     }
 
-    final Directory directory =
-        await DocumentExportService.defaultExportDirectory();
+    // Use app-specific external storage (Android 11+ safe, no permission needed)
+    final Directory bestDir = await DocumentStorageService.instance
+        .getBestExportDirectory();
 
     setState(() {
-      _destinationDirectory = directory.path;
+      _destinationDirectory = bestDir.path;
     });
-    return directory.path;
+    return bestDir.path;
   }
 
   Future<void> _chooseDestination() async {
-    final String? directory = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Choose destination folder',
+    final String? selectedDir = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choose folder to save export',
     );
-    if (directory == null) {
+
+    if (selectedDir == null) {
       return;
     }
 
     setState(() {
-      _destinationDirectory = directory;
+      _destinationDirectory = selectedDir;
     });
+
+    if (!mounted) return;
+
+    // Note: Files will be saved to selected folder if accessible,
+    // otherwise they'll automatically fallback to app storage.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Folder selected. Files will be saved here if accessible.',
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<void> _refreshEstimate() async {

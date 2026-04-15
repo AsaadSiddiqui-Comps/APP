@@ -83,3 +83,23 @@ now on after done export setting here all options are givne so the that you have
  optimized better performance
 
 
+problems are their
+🧾 issue fix 1 — Change storage to accessible internal storage
+currently my files are being saved in the internal app directory (/data/user/0/<package>/app_flutter/), which is not accessible through the device file manager. I want to modify my code so that files are instead saved in a user-accessible location like /storage/emulated/0/Documents/my_app/ (this wil be defualt location of app) or a similar public directory. Please provide a clean and modern Flutter solution using path_provider or any recommended approach that ensures compatibility with newer Android versions (Android 11+), including proper handling of storage restrictions.
+
+🧾 issue fix 2— Fix “directory not writable” issue
+In my Flutter app, when I try to create or use a custom directory in internal storage like /storage/emulated/0/Documents/my_app/, I sometimes get errors saying the directory is not writable. I want to properly fix this issue by handling permissions correctly across Android versions (especially Android 13+). Please explain how to request and manage runtime storage permissions using packages like permission_handler, and how to ensure the directory is created and writable without errors.
+
+🧾 iisue 3 fix — Make files visible in Samsung File Manager
+I want my Flutter app to save files in a location that is easily accessible through Samsung’s default file manager (My Files app), without needing ADB or root access. The files should appear normally under categories like Documents or Downloads. Please suggest the best directory path and implementation strategy to ensure files are visible and persistent, and explain any Android storage policies (like scoped storage) that I need to handle properly.
+
+
+ah its still saving the files in the /data/user/0/<package>/app_flutter/ the choosen folder is not write able and if i have not seelected any then i dontknow here it save the file 
+
+so i want just two things
+that first the app should create one custom folder here  /storage/emulated/0/Documents/my_app/
+and here inside it should save the draft and exported files {pdf/images}
+second is let user select the destination folder at that it donest show the that folder is not writeable, as per user specific 
+
+we are using Android verison 11+
+
