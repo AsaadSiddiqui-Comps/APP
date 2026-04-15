@@ -20,23 +20,17 @@ class AppPermissionService {
   static final AppPermissionService instance = AppPermissionService._();
 
   List<Permission> requiredPermissions() {
-    if (Platform.isAndroid) {
-      return <Permission>[
-        Permission.camera,
-        Permission.photos,
-        Permission.storage,
-        Permission.manageExternalStorage,
-      ];
+    if (Platform.isAndroid || Platform.isIOS) {
+      return <Permission>[Permission.camera, Permission.photos];
     }
-
-    if (Platform.isIOS) {
-      return <Permission>[
-        Permission.camera,
-        Permission.photos,
-      ];
-    }
-
     return <Permission>[Permission.camera];
+  }
+
+  List<Permission> optionalStoragePermissions() {
+    if (Platform.isAndroid) {
+      return <Permission>[Permission.manageExternalStorage];
+    }
+    return <Permission>[];
   }
 
   Future<bool> hasAllPermissions() async {
@@ -52,8 +46,8 @@ class AppPermissionService {
 
   Future<PermissionCheckResult> requestRequiredPermissions() async {
     final List<Permission> permissions = requiredPermissions();
-    final Map<Permission, PermissionStatus> statuses =
-        await permissions.request();
+    final Map<Permission, PermissionStatus> statuses = await permissions
+        .request();
 
     final List<Permission> denied = <Permission>[];
     final List<Permission> permanentlyDenied = <Permission>[];
@@ -79,13 +73,10 @@ class AppPermissionService {
       return 'Camera';
     }
     if (permission == Permission.photos) {
-      return 'Photos / Media';
-    }
-    if (permission == Permission.storage) {
-      return 'Storage';
+      return 'Photos & Videos';
     }
     if (permission == Permission.manageExternalStorage) {
-      return 'All files access';
+      return 'All Files Access (optional)';
     }
     return permission.toString();
   }
