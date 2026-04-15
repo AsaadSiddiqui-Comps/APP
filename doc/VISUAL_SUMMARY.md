@@ -134,7 +134,7 @@ Info:       #5B7BFF (Blue)
 
 ### Option 1: Via Terminal
 ```bash
-cd c:\Users\HP\my_app\my_app
+cd <project-root>
 flutter run
 ```
 

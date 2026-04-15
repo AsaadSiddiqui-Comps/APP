@@ -222,7 +222,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Internal storage/Download/my_app',
+                                      'Internal storage/Download/Docly',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context)
@@ -474,7 +474,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         displayName: '$_documentName.pdf',
         mimeType: 'application/pdf',
       );
-    }, successMessage: 'PDF exported to Downloads/my_app');
+    }, successMessage: 'PDF exported to Downloads/Docly');
   }
 
   Future<void> _exportImages() async {
@@ -495,7 +495,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
           mimeType: _imageMime(path),
         );
       }
-    }, successMessage: 'Images exported to Downloads/my_app');
+    }, successMessage: 'Images exported to Downloads/Docly');
   }
 
   Future<void> _runExport(

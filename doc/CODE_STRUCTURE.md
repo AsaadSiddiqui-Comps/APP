@@ -3,7 +3,7 @@
 ## Complete Project Structure
 
 ```
-my_app/
+Docly/
 ├── android/                          # Android platform code
 ├── ios/                              # iOS platform code
 ├── lib/

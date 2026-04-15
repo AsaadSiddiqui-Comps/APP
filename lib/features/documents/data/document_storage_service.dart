@@ -9,7 +9,7 @@ class DocumentStorageService {
 
   static final DocumentStorageService instance = DocumentStorageService._();
   static const MethodChannel _storageChannel = MethodChannel(
-    'com.example.my_app/storage',
+    'com.pixeldev.Docly/storage',
   );
 
   Directory? _rootDir;
@@ -46,7 +46,7 @@ class DocumentStorageService {
 
         if (externalDir != null) {
           final Directory appDir = Directory(
-            '${externalDir.path}${Platform.pathSeparator}my_app',
+            '${externalDir.path}${Platform.pathSeparator}Docly',
           );
 
           await appDir.create(recursive: true);
@@ -62,7 +62,7 @@ class DocumentStorageService {
 
     // ✅ Fallback: App Documents (always works)
     final Directory baseDir = await getApplicationDocumentsDirectory();
-    return Directory('${baseDir.path}${Platform.pathSeparator}my_app');
+    return Directory('${baseDir.path}${Platform.pathSeparator}Docly');
   }
 
   Future<bool> _isWritable(Directory directory) async {
@@ -124,7 +124,7 @@ class DocumentStorageService {
     if (Platform.isAndroid) {
       try {
         final Directory downloadsDir = Directory(
-          '/storage/emulated/0/Download${Platform.pathSeparator}my_app',
+          '/storage/emulated/0/Download${Platform.pathSeparator}Docly',
         );
         await downloadsDir.create(recursive: true);
         if (await _isWritable(downloadsDir)) {
@@ -148,7 +148,7 @@ class DocumentStorageService {
     }
   }
 
-  /// Save a generated file into public Downloads/my_app (Android) so users can
+  /// Save a generated file into public Downloads/Docly (Android) so users can
   /// access it from recent files and file managers.
   /// Falls back to a writable directory if platform save fails.
   Future<String> saveFileToPublicDownloads({
@@ -168,7 +168,7 @@ class DocumentStorageService {
               'sourcePath': sourcePath,
               'displayName': displayName,
               'mimeType': mimeType,
-              'subFolder': 'my_app',
+              'subFolder': 'Docly',
             });
 
         if (savedLocation != null && savedLocation.isNotEmpty) {

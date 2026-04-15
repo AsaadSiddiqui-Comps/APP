@@ -70,7 +70,7 @@ Welcome to the PhotoToPDF App Documentation! Start here to find what you need.
 
 ```bash
 # Navigate to project
-cd c:\Users\HP\my_app\my_app
+cd <project-root>
 
 # Install dependencies
 flutter pub get

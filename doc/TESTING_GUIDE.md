@@ -26,7 +26,7 @@
 
 ### Step 1: Initial Setup
 ```bash
-cd c:\Users\HP\my_app\my_app
+cd <project-root>
 
 # Clean previous builds
 flutter clean

@@ -8,11 +8,11 @@ This document lists the active packages used in the app and what each one does i
 
 ## Capture and File Input
 - camera: Live camera preview and photo capture for scan flow.
-- file_picker: Folder selection for export destination and image picking from device files/gallery sources.
+- file_picker: Image/file picking support for scan import flows.
 - path_provider: Gets safe app directories and helps resolve fallback storage paths.
 - permission_handler: Requests runtime permissions (camera, photos) and can open app settings.
 - media_scanner: Triggers media indexing after export so files appear in My Files, PDF apps, and Gallery.
-- shared_preferences: Persists selected export folder and related export options across app restarts.
+- shared_preferences: Available in project dependencies for future preference storage use.
 
 ## Document Creation and Processing
 - image: Image decoding, resize, and JPEG re-encoding before PDF generation to improve stability and output size.
@@ -42,7 +42,7 @@ This document lists the active packages used in the app and what each one does i
 
 #### Optional Permissions (Informational)
 - **All Files Access** (MANAGE_EXTERNAL_STORAGE on Android): Allows broader export flexibility.
-- If not granted, the app still works—exports go to the app's `my_app/exported` folder.
+- If not granted, the app still works—exports go to the app's `Docly/exported` folder.
 - User can enable this in Settings later for more export destinations.
 
 Note: This permission should remain optional. For production and Play Store safety, primary export should rely on app-specific storage, file picker (SAF), and media scanning.
@@ -50,7 +50,7 @@ Note: This permission should remain optional. For production and Play Store safe
 ### Storage Paths (Android 11+)
 
 #### Default Storage Location
-**Path:** `/storage/emulated/0/Android/data/<package>/files/my_app/`
+**Path:** `/storage/emulated/0/Android/data/<package>/files/Docly/`
 
 - Obtained via `getExternalStorageDirectory()` (Android-compliant method)
 - **No special permission needed** (safe on Android 11+)
@@ -59,36 +59,32 @@ Note: This permission should remain optional. For production and Play Store safe
 - **Files saved here are persistent** across device reboots
 
 #### Draft Storage (Default)
-- Full Path: `/storage/emulated/0/Android/data/<package>/files/my_app/drafts`
+- Full Path: `/storage/emulated/0/Android/data/<package>/files/Docly/drafts`
 - Purpose: Stores in-progress document scans and edits
 - Writable: Always (no special permission needed)
 
 #### Export Storage (Default)
-- Full Path: `/storage/emulated/0/Android/data/<package>/files/my_app/exported`
-- Purpose: Stores finalized exported files (PDF or images)
+- Full Path: `/storage/emulated/0/Android/data/<package>/files/Docly/exported`
+- Purpose: Stores temporary/generated files before publishing into Downloads
 - Writable: Always (no special permission needed)
-- **Default behavior**: If user doesn't select an export destination, files go here
+- **Default behavior**: Files are generated here first, then copied to public Downloads
 
-#### Custom Export Location (Optional)
-- User can tap **"Change"** button to pick any folder
-- File picker lets users select any writable folder without needing MANAGE_EXTERNAL_STORAGE
-- If selected folder becomes inaccessible, fallback to default export folder automatically
-
-#### Optional Public Export (Android Only)
-- Path: `/storage/emulated/0/Download/my_app/`
-- Direct path usage is risky on Android 11+ unless SAF or MediaStore is used
-- Prefer file picker destination selection (SAF) or MediaStore-based save flows for Downloads
+#### Public Export Location (Android)
+- Target Path: `Downloads/Docly/`
+- Export is fixed to Downloads behavior for better user visibility and accessibility
+- Android 10+ uses MediaStore write flow via platform channel (`saveFileToDownloads`)
+- If MediaStore path fails, app falls back to writable directory strategy
 
 ### Why This Works on Android 11+
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| **Direct public paths** | ❌ Blocked | `/storage/emulated/0/my_app` doesn't work reliably |
+| **Direct public paths** | ❌ Blocked | `/storage/emulated/0/Docly` doesn't work reliably |
 | **App-specific external** | ✅ Safe | `getExternalStorageDirectory()` always writable, no permission needed |
 | **Optional permissions** | ✅ Flexible | User can enable storage access later if desired |
-| **File picker support** | ✅ Works | Folder selection without needing broad permissions |
+| **MediaStore Downloads write** | ✅ Preferred | Android 10+ compliant public Downloads export |
 | **Scoped storage** | ✅ Compliant | Follows Android's purpose-based storage model |
-| **Fallback logic** | ✅ Robust | Automatically uses safe storage if selected folder fails |
+| **Fallback logic** | ✅ Robust | Automatically uses a writable fallback if Downloads publish fails |
 
 #### iOS Storage Details
 - Photos and gallery import use the standard Photos framework.
@@ -107,15 +103,15 @@ Note: This permission should remain optional. For production and Play Store safe
 
 ### Export Behavior
 
-- **Default (No Selection)**: Exports go to `/storage/emulated/0/Android/data/<package>/files/my_app/exported/`
-- **Custom Folder Selected**: Tries selected folder; if fails, fallback to default with message
-- **Downloads Mode Selected**: Uses SAF-selected Downloads folder first, then tries `/storage/emulated/0/Download/my_app/` if writable, then falls back to app export folder
-- **File Accessibility**: Exported files are scanned with media scanner so they appear in file managers and viewer apps
-- **Selection Persistence**: Destination mode and selected paths are restored on next app launch using SharedPreferences
+- **Default Export Target**: Downloads `Docly` folder (public and user-visible)
+- **Export Button**: Generates file(s), then publishes to Downloads
+- **Share Button**: Direct share flow using generated PDF bytes
+- **Temporary Working Path**: `/storage/emulated/0/Android/data/<package>/files/Docly/exported/`
+- **File Accessibility**: Exported files are scanned/indexed for visibility in file managers and viewers
 
 ### Premium Export Experience (Implemented)
 
-The app now includes a full Save As flow and reliable destination handling.
+The app now uses a simplified export UX focused on reliability and visibility.
 
 1. **File Visibility UX**
 - After successful export, media scanner is triggered on exported output paths.
@@ -123,37 +119,32 @@ The app now includes a full Save As flow and reliable destination handling.
 - Image export scans each exported image file path.
 - Outcome: Files appear in My Files, PDF apps, and Gallery faster on Android 13+.
 
-2. **Export Options UX (Save As Bottom Sheet)**
-- Save As sheet includes all 4 actions:
-   - Default (App Storage)
-   - Choose Folder
-   - Save to Downloads
-   - Share
-- Both destination change actions route through this same sheet for consistent UX.
+2. **Export Actions UX**
+- Primary actions are:
+   - Share (left button)
+   - Export (right button)
+- Save As menu and destination picker were removed to avoid conflict/fallback confusion.
 
-3. **Persistent Folder Selection**
-- Destination mode is persisted (app storage, custom folder, downloads).
-- Custom folder path and Downloads SAF path are saved with SharedPreferences.
-- On next export, the app restores mode and attempts saved paths first.
-- If path is no longer writable, export falls back safely to app storage.
+3. **Fixed Destination Strategy**
+- Destination is fixed to Downloads-first publishing.
+- App-private storage is used as staging/temporary output only.
+- This avoids inaccessible custom-folder failures on Android 14+.
 
-4. **Downloads Strategy Hardening (SAF-first)**
-- Downloads mode uses this order:
-   - SAF folder picked by user (preferred)
-   - Direct `/storage/emulated/0/Download/my_app` only if writable
-   - App export folder fallback
-- This reduces failures on scoped storage devices while keeping practical fallback behavior.
+4. **Downloads Strategy Hardening (MediaStore-first)**
+- Android 10+ uses MediaStore APIs through native method channel to save into Downloads.
+- Legacy/direct path fallback is only used when needed.
+- This aligns with scoped storage and improves user file discovery.
 
 5. **Share Path**
-- Save As includes Share action.
+- Share is a primary button action.
 - Share generates PDF output and opens platform share UI.
 - If image mode is selected, sharing still uses PDF for compatibility across receiving apps.
 
 ### Viewing Exported Files on Device
 
-1. **On Samsung**: Open **My Files** > **Android** > **data** > **com.example.my_app** > **files** > **my_app**
-2. **On Stock Android**: Use a file manager app, navigate to `/Android/data/<package>/files/my_app`
-3. **If Downloads Mode Is Used**: Files can appear in **Downloads** > **my_app** when Downloads destination is writable/selected
-4. **Via USB Cable**: Connect phone to PC, navigate to `Internal Storage/Android/data/<package>/files/my_app/`
+1. **On Samsung**: Open **My Files** > **Android** > **data** > **com.pixeldev.Docly** > **files** > **Docly**
+2. **On Stock Android**: Use a file manager app, navigate to `/Android/data/<package>/files/Docly`
+3. **By Default**: Files appear in **Downloads** > **Docly** after export
+4. **Via USB Cable**: Connect phone to PC, navigate to `Internal Storage/Android/data/<package>/files/Docly/`
 
 

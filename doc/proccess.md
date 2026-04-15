@@ -85,10 +85,10 @@ now on after done export setting here all options are givne so the that you have
 
 problems are their
 🧾 issue fix 1 — Change storage to accessible internal storage
-currently my files are being saved in the internal app directory (/data/user/0/<package>/app_flutter/), which is not accessible through the device file manager. I want to modify my code so that files are instead saved in a user-accessible location like /storage/emulated/0/Documents/my_app/ (this wil be defualt location of app) or a similar public directory. Please provide a clean and modern Flutter solution using path_provider or any recommended approach that ensures compatibility with newer Android versions (Android 11+), including proper handling of storage restrictions.
+currently my files are being saved in the internal app directory (/data/user/0/<package>/app_flutter/), which is not accessible through the device file manager. I want to modify my code so that files are instead saved in a user-accessible location like /storage/emulated/0/Documents/Docly/ (this wil be defualt location of app) or a similar public directory. Please provide a clean and modern Flutter solution using path_provider or any recommended approach that ensures compatibility with newer Android versions (Android 11+), including proper handling of storage restrictions.
 
 🧾 issue fix 2— Fix “directory not writable” issue
-In my Flutter app, when I try to create or use a custom directory in internal storage like /storage/emulated/0/Documents/my_app/, I sometimes get errors saying the directory is not writable. I want to properly fix this issue by handling permissions correctly across Android versions (especially Android 13+). Please explain how to request and manage runtime storage permissions using packages like permission_handler, and how to ensure the directory is created and writable without errors.
+In my Flutter app, when I try to create or use a custom directory in internal storage like /storage/emulated/0/Documents/Docly/, I sometimes get errors saying the directory is not writable. I want to properly fix this issue by handling permissions correctly across Android versions (especially Android 13+). Please explain how to request and manage runtime storage permissions using packages like permission_handler, and how to ensure the directory is created and writable without errors.
 
 🧾 iisue 3 fix — Make files visible in Samsung File Manager
 I want my Flutter app to save files in a location that is easily accessible through Samsung’s default file manager (My Files app), without needing ADB or root access. The files should appear normally under categories like Documents or Downloads. Please suggest the best directory path and implementation strategy to ensure files are visible and persistent, and explain any Android storage policies (like scoped storage) that I need to handle properly.
@@ -97,7 +97,7 @@ I want my Flutter app to save files in a location that is easily accessible thro
 ah its still saving the files in the /data/user/0/<package>/app_flutter/ the choosen folder is not write able and if i have not seelected any then i dontknow here it save the file 
 
 so i want just two things
-that first the app should create one custom folder here  /storage/emulated/0/Documents/my_app/
+that first the app should create one custom folder here  /storage/emulated/0/Documents/Docly/
 and here inside it should save the draft and exported files {pdf/images}
 second is let user select the destination folder at that it donest show the that folder is not writeable, as per user specific 
 
@@ -105,11 +105,11 @@ we are using Android verison 11+
 
 
 it is saving the files here 
-/sdcard/Android/data/com.example.my_app/files/my_app/exported
+/sdcard/Android/data/com.pixeldev.Docly/files/Docly/exported
 so one thing is fixed 
 
 now the next issue is still remianig that whne choosing custom folder 
-first it show the selected fodler is inaccessible and saved to  this /sdcard/Android/data/com.example.my_app/files/my_app/exported
+first it show the selected fodler is inaccessible and saved to  this /sdcard/Android/data/com.pixeldev.Docly/files/Docly/exported
 
 so i have think this that 
 we have two buttons one save to.. and one export
@@ -118,11 +118,11 @@ so change this save to.. = {icon} share
 
 
 and remove he save as menue  and the destination will be fixed to app defualt storage, it will export it on this location only 
-/sdcard/Android/data/com.example.my_app/files/my_app/exported
+/sdcard/Android/data/com.pixeldev.Docly/files/Docly/exported
 
 but now let make this that all pdf is exproted on this path just now we have to make that the pdf can be accessable from recent files so  or make it that like normal browser downlado the files on download folder so just you have to make that it will epxort it on downlaod folder by defualt so it will be proepr and accesable path from mobile
 
-the thing is /sdcard/Android/data/com.example.my_app/files/my_app/exported
+the thing is /sdcard/Android/data/com.pixeldev.Docly/files/Docly/exported
  this path is nto accessble by mobile bez of security in android 14+ so we have to make it proepr that it should export it to downlaod
 
 Searhc ofr better solution

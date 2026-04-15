@@ -148,7 +148,7 @@ Info: #5B7BFF (Blue) - Informational
 Your app is production-ready! To run it:
 
 ```bash
-cd c:\Users\HP\my_app\my_app
+cd <project-root>
 flutter pub get
 flutter run
 ```

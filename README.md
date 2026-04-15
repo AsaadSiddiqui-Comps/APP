@@ -1,4 +1,4 @@
-# my_app
+# Docly
 
 A new Flutter project.
 
