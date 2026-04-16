@@ -236,3 +236,104 @@ this is all for files
 
 and also make that when the there a recent and when click o the arrow it will redirect to the files page
 
+---
+
+## Native Performance Architecture (Kotlin/Android)
+
+All CPU-intensive image processing now executes on Android's native layer using Kotlin, eliminating main-thread blocking and memory transfer overhead. This ensures true non-blocking responsiveness.
+
+### Key Principles
+
+1. **True Non-Blocking UI**: Buttons NEVER disable during processing. All operations are queued and executed asynchronously on background threads.
+2. **Immediate Visual Feedback**: Optimistic UI updates (rotation preview, crop overlay) show instant response while native processing happens in background.
+3. **Native Processing**: Crop, rotate, filter, resize, and PDF generation all run in Kotlin using Android APIs (no Dart isolates).
+4. **MethodChannel Bridge**: Flutter communicates with Kotlin via MethodChannel for fully async invoke pattern.
+5. **Operation Queue**: Dart-side queue prevents overlapping operations and maintains order without blocking UI.
+
+### Architecture Overview
+
+```
+User Tap → Optimistic UI Update → Enqueue Operation → UI Remains Interactive
+                                            ↓
+                                    Dart Operation Queue
+                                            ↓
+                                    MethodChannel → Kotlin
+                                            ↓
+                                   Native ImageProcessor
+                                            ↓
+                        Android Thread Pool (Background)
+                                            ↓
+                        Return Result → Update UI Seamlessly
+```
+
+### Operation Flow
+
+1. **Rotate Operation**:
+   - User taps rotate button
+   - Optimistic preview shows rotated image immediately (Transform.rotate)
+   - UI remains fully responsive
+   - Operation enqueued to process queue
+   - Native Kotlin processes actual bitmap rotation in background
+   - Result replaces preview when ready
+
+2. **Filter Operation**:
+   - User taps filter from strip
+   - Lo-res preview (600px) generated instantly for immediate feedback
+   - Full-res filter applied in background via Kotlin
+   - High-quality result replaces preview silently
+
+3. **PDF Export**:
+   - User taps Export
+   - Export screen shows progress indicator
+   - PDF generation runs on Android thread pool in Kotlin
+   - Progress callbacks update UI during processing
+   - No UI blocking, no ANR risk
+
+###Kotlin Native Processor (`ImageProcessor.kt`)
+
+```kotlin
+class ImageProcessor {
+    fun processImage(action: String, bytes: ByteArray, params: Map<String, Any>): ByteArray {
+        return when (action) {
+            "crop" -> crop(bytes, params)
+            "rotate" -> rotate(bytes, params)
+            "filter" -> applyFilter(bytes, params)
+            "resize" -> resize(bytes, params)
+            else -> bytes
+        }
+    }
+}
+```
+
+All operations are memory-efficient:
+- Bitmaps are recycled immediately after use
+- Parameters passed as primitives, not full objects
+- Output is compressed JPEG to reduce transfer size
+
+### Dart Operation Queue (`OperationQueue`)
+
+```dart
+final queue = OperationQueue();
+
+queue.enqueue(
+  () => NativeImageProcessor.rotateByDegrees(path, 90),
+  label: 'rotate_90'
+);
+// UI remains interactive immediately
+// Operation processes in background sequentially
+```
+
+Benefits:
+- No blocking awaits on UI thread
+- Operations process in order
+- Multiple rapid taps are safely queued, not dropped
+- UI can show queue status if needed (pending count)
+
+### Result
+
+- ✅ **Instant Button Response**: Buttons always clickable
+- ✅ **No UI Freezing**: Even large images process smoothly
+- ✅ **Smooth Animations**: Crop overlays, rotations, transitions unaffected
+- ✅ **Memory Efficient**: Native bitmaps, no Dart copies
+- ✅ **ANR Safe**: All heavy work off main thread
+

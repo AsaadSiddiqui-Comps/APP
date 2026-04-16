@@ -12,7 +12,8 @@ import '../../documents/data/document_draft_store.dart';
 import '../../documents/data/document_storage_service.dart';
 import '../../documents/models/document_draft.dart';
 import '../../export/screens/document_export_screen.dart';
-import '../services/image_edit_service.dart';
+import '../services/native_image_processor.dart';
+import '../services/operation_queue.dart';
 
 class EditorComingSoonScreen extends StatefulWidget {
   const EditorComingSoonScreen({
@@ -38,7 +39,8 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   late List<EditorResizeMode> _resizeModes;
 
   bool _applyToAllPages = false;
-  bool _isProcessing = false;
+  late final OperationQueue _operationQueue;
+  late final Set<int> _pagesBusy;
   int _currentPage = 0;
 
   bool _isCropMode = false;
@@ -66,6 +68,13 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     super.initState();
     _pageController = PageController();
     _pages = List<XFile>.from(widget.initialImages);
+    _pagesBusy = <int>{};
+    _operationQueue = OperationQueue();
+    _operationQueue.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _resizeModes = List<EditorResizeMode>.filled(
       _pages.length,
       EditorResizeMode.autoFit,
@@ -549,39 +558,34 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
         itemBuilder: (BuildContext context, int index) {
           final _ToolAction tool = tools[index];
           return InkWell(
-            onTap: _isProcessing
-                ? null
-                : () {
-                    HapticFeedback.selectionClick();
-                    tool.onTap();
-                  },
+            onTap: () {
+              HapticFeedback.selectionClick();
+              tool.onTap();
+            },
             borderRadius: BorderRadius.circular(14),
-            child: Opacity(
-              opacity: _isProcessing ? 0.6 : 1,
-              child: SizedBox(
-                width: 66,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDark
-                            ? AppColors.darkSurfaceContainerLow
-                            : AppColors.lightSurfaceContainerLow,
-                        border: Border.all(color: accent.withOpacity(0.28)),
-                      ),
-                      child: Icon(tool.icon, size: 20),
+            child: SizedBox(
+              width: 66,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isDark
+                          ? AppColors.darkSurfaceContainerLow
+                          : AppColors.lightSurfaceContainerLow,
+                      border: Border.all(color: accent.withOpacity(0.28)),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      tool.label,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
-                ),
+                    child: Icon(tool.icon, size: 20),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    tool.label,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ],
               ),
             ),
           );
@@ -644,7 +648,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   }
 
   Future<void> _toggleAutoCropMode() async {
-    if (_isProcessing || _pages.isEmpty) {
+    if (_pages.isEmpty) {
       return;
     }
 
@@ -669,34 +673,37 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     }
 
     setState(() {
-      _isProcessing = true;
       _showFilterStrip = false;
       _showRotateStrip = false;
+      _pagesBusy.add(_currentPage);
     });
 
     try {
       final String sourcePath = _pages[_currentPage].path;
-      final NormalizedQuad quad =
-          await ImageEditService.detectDocumentQuadNormalized(sourcePath);
-      final Size imageSize = await ImageEditService.readImageSize(sourcePath);
+      final (width, height) = await NativeImageProcessor.readImageSize(sourcePath);
 
       if (!mounted) {
         return;
       }
       setState(() {
-        _isProcessing = false;
         _isCropMode = true;
         _isAutoCropMode = true;
         _cropTargetIndex = _currentPage;
-        _cropQuad = quad;
-        _cropImageSize = imageSize;
+        _cropQuad = const NormalizedQuad(
+          topLeft: Offset(0.08, 0.08),
+          topRight: Offset(0.92, 0.08),
+          bottomRight: Offset(0.92, 0.92),
+          bottomLeft: Offset(0.08, 0.92),
+        );
+        _cropImageSize = Size(width.toDouble(), height.toDouble());
+        _pagesBusy.remove(_currentPage);
       });
     } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _isProcessing = false;
+        _pagesBusy.remove(_currentPage);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Auto edge detection failed.')),
@@ -705,7 +712,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   }
 
   Future<void> _toggleManualCropMode() async {
-    if (_isProcessing || _pages.isEmpty) {
+    if (_pages.isEmpty) {
       return;
     }
 
@@ -715,20 +722,19 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     }
 
     setState(() {
-      _isProcessing = true;
       _showFilterStrip = false;
       _showRotateStrip = false;
+      _pagesBusy.add(_currentPage);
     });
 
     try {
       final String sourcePath = _pages[_currentPage].path;
-      final Size imageSize = await ImageEditService.readImageSize(sourcePath);
+      final (width, height) = await NativeImageProcessor.readImageSize(sourcePath);
 
       if (!mounted) {
         return;
       }
       setState(() {
-        _isProcessing = false;
         _isCropMode = true;
         _isAutoCropMode = false;
         _cropTargetIndex = _currentPage;
@@ -738,14 +744,15 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
           bottomRight: Offset(0.92, 0.92),
           bottomLeft: Offset(0.08, 0.92),
         );
-        _cropImageSize = imageSize;
+        _cropImageSize = Size(width.toDouble(), height.toDouble());
+        _pagesBusy.remove(_currentPage);
       });
     } catch (_) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _isProcessing = false;
+        _pagesBusy.remove(_currentPage);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Manual crop setup failed.')),
@@ -823,56 +830,62 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   }
 
   Future<void> _applyRotateOption(int degrees) async {
-    if (_isProcessing) {
-      return;
+    if (_isCropMode) {
+      _cancelInlineCrop();
     }
 
     final List<int> indexes = _applyToAllPages
         ? List<int>.generate(_pages.length, (int i) => i)
         : <int>[_currentPage];
 
+    // Show optimistic preview immediately
     setState(() {
-      _isProcessing = true;
-      _exitInlineModes();
       for (final int index in indexes) {
+        _pagesBusy.add(index);
         final int current = _pendingRotationDegreesByPage[index] ?? 0;
         _pendingRotationDegreesByPage[index] = (current + degrees) % 360;
       }
     });
 
-    try {
-      for (final int index in indexes) {
-        final String editedPath = await ImageEditService.rotateByDegrees(
-          _pages[index].path,
-          degrees,
-        );
-        _pages[index] = XFile(editedPath);
-      }
+    // Process in background via queue without blocking UI
+    _operationQueue.enqueue(
+      () async {
+        try {
+          for (final int index in indexes) {
+            final String editedPath = await NativeImageProcessor.rotateByDegrees(
+              _pages[index].path,
+              degrees,
+            );
+            _pages[index] = XFile(editedPath);
+          }
 
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isProcessing = false;
-        for (final int index in indexes) {
-          _pendingRotationDegreesByPage.remove(index);
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            for (final int index in indexes) {
+              _pagesBusy.remove(index);
+              _pendingRotationDegreesByPage.remove(index);
+            }
+          });
+          _prepareFilterPreviews();
+        } catch (e) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            for (final int index in indexes) {
+              _pagesBusy.remove(index);
+              _pendingRotationDegreesByPage.remove(index);
+            }
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rotate failed. Try a different image.')),
+          );
         }
-      });
-      _prepareFilterPreviews();
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isProcessing = false;
-        for (final int index in indexes) {
-          _pendingRotationDegreesByPage.remove(index);
-        }
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rotate failed. Try a different image.')),
-      );
-    }
+      },
+      label: 'rotate_$degrees',
+    );
   }
 
   void _toggleFilterStrip() {

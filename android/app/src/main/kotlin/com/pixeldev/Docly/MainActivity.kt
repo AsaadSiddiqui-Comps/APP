@@ -13,6 +13,8 @@ import java.io.FileInputStream
 
 class MainActivity : FlutterActivity() {
     private val storageChannel = "com.pixeldev.Docly/storage"
+    private val imageChannel = "com.pixeldev.Docly/image"
+    private val imageProcessor = ImageProcessor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -24,6 +26,32 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, imageChannel)
+            .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
+                when (call.method) {
+                    "processImage" -> processImage(call, result)
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun processImage(call: MethodCall, result: MethodChannel.Result) {
+        try {
+            val action = call.argument<String>("action")
+            val bytes = call.argument<ByteArray>("bytes")
+            val params = call.argument<Map<String, Any>>("params") as? Map<String, Any> ?: emptyMap()
+
+            if (action.isNullOrEmpty() || bytes == null) {
+                result.error("invalid_args", "action and bytes are required", null)
+                return
+            }
+
+            val processed = imageProcessor.processImage(action, bytes, params)
+            result.success(processed)
+        } catch (e: Exception) {
+            result.error("processing_error", e.message, null)
+        }
     }
 
     private fun saveFileToDownloads(call: MethodCall, result: MethodChannel.Result) {
