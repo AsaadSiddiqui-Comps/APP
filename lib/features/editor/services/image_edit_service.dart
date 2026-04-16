@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -19,31 +20,53 @@ enum EditorFilterType {
 enum EditorResizeMode { autoFit, a4, a3 }
 
 class ImageEditService {
+  static final Map<String, String> _operationCache = <String, String>{};
+  static const int _maxCacheEntries = 64;
+
+  static String? _cachedPath(String key) {
+    final String? path = _operationCache[key];
+    if (path == null) {
+      return null;
+    }
+    if (!File(path).existsSync()) {
+      _operationCache.remove(key);
+      return null;
+    }
+    return path;
+  }
+
+  static String _cacheKey(String sourcePath, String op) {
+    return '$sourcePath|$op';
+  }
+
+  static void _rememberCache(String key, String path) {
+    _operationCache[key] = path;
+    while (_operationCache.length > _maxCacheEntries) {
+      _operationCache.remove(_operationCache.keys.first);
+    }
+  }
+
   static Future<Size> readImageSize(String sourcePath) async {
-    final img.Image image = await _decode(sourcePath);
-    return Size(image.width.toDouble(), image.height.toDouble());
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final List<double> result = await Isolate.run<List<double>>(
+      () => _readImageSizeFromBytes(bytes),
+    );
+    return Size(result[0], result[1]);
   }
 
   static Future<NormalizedQuad> detectDocumentQuadNormalized(
     String sourcePath,
   ) async {
-    final img.Image image = await _decode(sourcePath);
-    final _Bounds bounds = _estimateDocumentBounds(image);
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final List<double> result = await Isolate.run<List<double>>(
+      () => _detectQuadNormalizedFromBytes(bytes),
+    );
 
     return NormalizedQuad(
-      topLeft: Offset(bounds.x / image.width, bounds.y / image.height),
-      topRight: Offset(
-        (bounds.x + bounds.width) / image.width,
-        bounds.y / image.height,
-      ),
-      bottomRight: Offset(
-        (bounds.x + bounds.width) / image.width,
-        (bounds.y + bounds.height) / image.height,
-      ),
-      bottomLeft: Offset(
-        bounds.x / image.width,
-        (bounds.y + bounds.height) / image.height,
-      ),
+      topLeft: Offset(result[0], result[1]),
+      topRight: Offset(result[2], result[3]),
+      bottomRight: Offset(result[4], result[5]),
+      bottomLeft: Offset(result[6], result[7]),
     ).clamped();
   }
 
@@ -51,82 +74,55 @@ class ImageEditService {
     String sourcePath,
     NormalizedQuad quad,
   ) async {
-    final img.Image source = await _decode(sourcePath);
-    final NormalizedQuad safe = quad.clamped();
-
-    final List<Offset> src = <Offset>[
-      Offset(safe.topLeft.dx * source.width, safe.topLeft.dy * source.height),
-      Offset(safe.topRight.dx * source.width, safe.topRight.dy * source.height),
-      Offset(
-        safe.bottomRight.dx * source.width,
-        safe.bottomRight.dy * source.height,
-      ),
-      Offset(
-        safe.bottomLeft.dx * source.width,
-        safe.bottomLeft.dy * source.height,
-      ),
-    ];
-
-    final double widthTop = (src[1] - src[0]).distance;
-    final double widthBottom = (src[2] - src[3]).distance;
-    final double heightRight = (src[2] - src[1]).distance;
-    final double heightLeft = (src[3] - src[0]).distance;
-
-    final int outWidth = math
-        .max(widthTop, widthBottom)
-        .round()
-        .clamp(64, 5000);
-    final int outHeight = math
-        .max(heightLeft, heightRight)
-        .round()
-        .clamp(64, 5000);
-
-    final List<Offset> dst = <Offset>[
-      const Offset(0, 0),
-      Offset(outWidth - 1.0, 0),
-      Offset(outWidth - 1.0, outHeight - 1.0),
-      Offset(0, outHeight - 1.0),
-    ];
-
-    final List<double> h = _computeHomography(from: dst, to: src);
-
-    final img.Image out = img.Image(width: outWidth, height: outHeight);
-
-    for (int y = 0; y < outHeight; y += 1) {
-      for (int x = 0; x < outWidth; x += 1) {
-        final Offset s = _applyHomography(h, x.toDouble(), y.toDouble());
-        final int sx = s.dx.round();
-        final int sy = s.dy.round();
-
-        if (sx < 0 || sy < 0 || sx >= source.width || sy >= source.height) {
-          out.setPixelRgba(x, y, 255, 255, 255, 255);
-        } else {
-          final img.Pixel p = source.getPixel(sx, sy);
-          out.setPixelRgba(
-            x,
-            y,
-            p.r.toInt(),
-            p.g.toInt(),
-            p.b.toInt(),
-            p.a.toInt(),
-          );
-        }
-      }
+    final String op =
+        'perspective_${quad.topLeft.dx}_${quad.topLeft.dy}_${quad.topRight.dx}_${quad.topRight.dy}_${quad.bottomRight.dx}_${quad.bottomRight.dy}_${quad.bottomLeft.dx}_${quad.bottomLeft.dy}';
+    final String key = _cacheKey(sourcePath, op);
+    final String? cached = _cachedPath(key);
+    if (cached != null) {
+      return cached;
     }
 
-    return _persist(out, sourcePath, 'perspective');
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final _CropRequest request = _CropRequest(
+      bytes: bytes,
+      quad: <double>[
+        quad.topLeft.dx,
+        quad.topLeft.dy,
+        quad.topRight.dx,
+        quad.topRight.dy,
+        quad.bottomRight.dx,
+        quad.bottomRight.dy,
+        quad.bottomLeft.dx,
+        quad.bottomLeft.dy,
+      ],
+    );
+    final Uint8List cropped = await Isolate.run<Uint8List>(
+      () => _cropPerspectiveBytes(request),
+    );
+
+    final String persisted = await _persistBytes(cropped, sourcePath, 'perspective');
+    _rememberCache(key, persisted);
+    return persisted;
   }
 
   static Future<String> rotate90(String sourcePath) async {
-    final img.Image image = await _decode(sourcePath);
-    final img.Image rotated = img.copyRotate(image, angle: 90);
-    return _persist(rotated, sourcePath, 'rot');
+    return rotateByDegrees(sourcePath, 90);
   }
 
   static Future<String> rotateByDegrees(String sourcePath, int degrees) async {
-    final img.Image image = await _decode(sourcePath);
-    final img.Image rotated = img.copyRotate(image, angle: degrees);
-    return _persist(rotated, sourcePath, 'rot$degrees');
+    final String key = _cacheKey(sourcePath, 'rot_$degrees');
+    final String? cached = _cachedPath(key);
+    if (cached != null) {
+      return cached;
+    }
+
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final Uint8List rotated = await Isolate.run<Uint8List>(
+      () => _rotateBytes(_RotateRequest(bytes: bytes, degrees: degrees)),
+    );
+    final String persisted = await _persistBytes(rotated, sourcePath, 'rot$degrees');
+    _rememberCache(key, persisted);
+    return persisted;
   }
 
   static Future<String> applyFilter(
@@ -137,9 +133,26 @@ class ImageEditService {
       return sourcePath;
     }
 
-    img.Image image = await _decode(sourcePath);
-    image = _applyFilterToImage(image, filter);
-    return _persist(image, sourcePath, 'filter');
+    final String key = _cacheKey(sourcePath, 'filter_${filter.name}_full');
+    final String? cached = _cachedPath(key);
+    if (cached != null) {
+      return cached;
+    }
+
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final Uint8List filtered = await Isolate.run<Uint8List>(
+      () => _filterBytes(
+        _FilterRequest(
+          bytes: bytes,
+          filterName: filter.name,
+          previewWidth: null,
+        ),
+      ),
+    );
+
+    final String persisted = await _persistBytes(filtered, sourcePath, 'filter');
+    _rememberCache(key, persisted);
+    return persisted;
   }
 
   static Future<String> applyFilterPreview(
@@ -150,53 +163,48 @@ class ImageEditService {
       return sourcePath;
     }
 
-    img.Image image = await _decode(sourcePath);
-    image = img.copyResize(
-      image,
-      width: 220,
-      interpolation: img.Interpolation.linear,
-    );
-    image = _applyFilterToImage(image, filter);
+    final String key = _cacheKey(sourcePath, 'filter_${filter.name}_preview_600');
+    final String? cached = _cachedPath(key);
+    if (cached != null) {
+      return cached;
+    }
 
-    return _persist(image, sourcePath, 'preview_${filter.name}');
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final Uint8List filtered = await Isolate.run<Uint8List>(
+      () => _filterBytes(
+        _FilterRequest(
+          bytes: bytes,
+          filterName: filter.name,
+          previewWidth: 600,
+        ),
+      ),
+    );
+
+    final String persisted = await _persistBytes(
+      filtered,
+      sourcePath,
+      'preview_${filter.name}',
+      quality: 85,
+    );
+    _rememberCache(key, persisted);
+    return persisted;
   }
 
   static Future<String> resize(String sourcePath, EditorResizeMode mode) async {
-    final img.Image image = await _decode(sourcePath);
-
-    int targetWidth;
-    int targetHeight;
-
-    switch (mode) {
-      case EditorResizeMode.autoFit:
-        targetWidth = 1240;
-        targetHeight = 1754;
-        break;
-      case EditorResizeMode.a4:
-        targetWidth = 1654;
-        targetHeight = 2339;
-        break;
-      case EditorResizeMode.a3:
-        targetWidth = 2339;
-        targetHeight = 3307;
-        break;
+    final String key = _cacheKey(sourcePath, 'resize_${mode.name}');
+    final String? cached = _cachedPath(key);
+    if (cached != null) {
+      return cached;
     }
 
-    final bool isLandscape = image.width > image.height;
-    if (isLandscape) {
-      final int oldWidth = targetWidth;
-      targetWidth = targetHeight;
-      targetHeight = oldWidth;
-    }
-
-    final img.Image resized = img.copyResize(
-      image,
-      width: targetWidth,
-      height: targetHeight,
-      interpolation: img.Interpolation.average,
+    final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final Uint8List resized = await Isolate.run<Uint8List>(
+      () => _resizeBytes(_ResizeRequest(bytes: bytes, modeName: mode.name)),
     );
 
-    return _persist(resized, sourcePath, 'resize');
+    final String persisted = await _persistBytes(resized, sourcePath, 'resize');
+    _rememberCache(key, persisted);
+    return persisted;
   }
 
   static img.Image _applyFilterToImage(
@@ -263,27 +271,23 @@ class ImageEditService {
     }
   }
 
-  static Future<img.Image> _decode(String path) async {
-    final Uint8List bytes = await File(path).readAsBytes();
-    final img.Image? image = img.decodeImage(bytes);
-    if (image == null) {
-      throw Exception('Could not decode image');
-    }
-    return image;
-  }
-
-  static Future<String> _persist(
-    img.Image image,
+  static Future<String> _persistBytes(
+    Uint8List bytes,
     String sourcePath,
-    String tag,
-  ) async {
+    String tag, {
+    int quality = 95,
+  }) async {
+    final img.Image? decoded = img.decodeImage(bytes);
+    if (decoded == null) {
+      throw Exception('Could not decode processed image');
+    }
     final Directory parent = File(sourcePath).parent;
     final String fileName =
         'edited_${DateTime.now().millisecondsSinceEpoch}_$tag.jpg';
     final File output = File(
       '${parent.path}${Platform.pathSeparator}$fileName',
     );
-    await output.writeAsBytes(img.encodeJpg(image, quality: 95));
+    await output.writeAsBytes(img.encodeJpg(decoded, quality: quality));
     return output.path;
   }
 
@@ -525,4 +529,198 @@ class _Bounds {
   final int y;
   final int width;
   final int height;
+}
+
+class _CropRequest {
+  const _CropRequest({required this.bytes, required this.quad});
+
+  final Uint8List bytes;
+  final List<double> quad;
+}
+
+class _RotateRequest {
+  const _RotateRequest({required this.bytes, required this.degrees});
+
+  final Uint8List bytes;
+  final int degrees;
+}
+
+class _FilterRequest {
+  const _FilterRequest({
+    required this.bytes,
+    required this.filterName,
+    required this.previewWidth,
+  });
+
+  final Uint8List bytes;
+  final String filterName;
+  final int? previewWidth;
+}
+
+class _ResizeRequest {
+  const _ResizeRequest({required this.bytes, required this.modeName});
+
+  final Uint8List bytes;
+  final String modeName;
+}
+
+List<double> _readImageSizeFromBytes(Uint8List bytes) {
+  final img.Image? image = img.decodeImage(bytes);
+  if (image == null) {
+    throw Exception('Could not decode image');
+  }
+  return <double>[image.width.toDouble(), image.height.toDouble()];
+}
+
+List<double> _detectQuadNormalizedFromBytes(Uint8List bytes) {
+  final img.Image? image = img.decodeImage(bytes);
+  if (image == null) {
+    throw Exception('Could not decode image');
+  }
+
+  final _Bounds bounds = ImageEditService._estimateDocumentBounds(image);
+  return <double>[
+    bounds.x / image.width,
+    bounds.y / image.height,
+    (bounds.x + bounds.width) / image.width,
+    bounds.y / image.height,
+    (bounds.x + bounds.width) / image.width,
+    (bounds.y + bounds.height) / image.height,
+    bounds.x / image.width,
+    (bounds.y + bounds.height) / image.height,
+  ];
+}
+
+Uint8List _cropPerspectiveBytes(_CropRequest request) {
+  final img.Image? source = img.decodeImage(request.bytes);
+  if (source == null) {
+    throw Exception('Could not decode image');
+  }
+
+  final NormalizedQuad safe = NormalizedQuad(
+    topLeft: Offset(request.quad[0], request.quad[1]),
+    topRight: Offset(request.quad[2], request.quad[3]),
+    bottomRight: Offset(request.quad[4], request.quad[5]),
+    bottomLeft: Offset(request.quad[6], request.quad[7]),
+  ).clamped();
+
+  final List<Offset> src = <Offset>[
+    Offset(safe.topLeft.dx * source.width, safe.topLeft.dy * source.height),
+    Offset(safe.topRight.dx * source.width, safe.topRight.dy * source.height),
+    Offset(safe.bottomRight.dx * source.width, safe.bottomRight.dy * source.height),
+    Offset(safe.bottomLeft.dx * source.width, safe.bottomLeft.dy * source.height),
+  ];
+
+  final double widthTop = (src[1] - src[0]).distance;
+  final double widthBottom = (src[2] - src[3]).distance;
+  final double heightRight = (src[2] - src[1]).distance;
+  final double heightLeft = (src[3] - src[0]).distance;
+
+  final int outWidth = math.max(widthTop, widthBottom).round().clamp(64, 5000);
+  final int outHeight = math.max(heightLeft, heightRight).round().clamp(64, 5000);
+
+  final List<Offset> dst = <Offset>[
+    const Offset(0, 0),
+    Offset(outWidth - 1.0, 0),
+    Offset(outWidth - 1.0, outHeight - 1.0),
+    Offset(0, outHeight - 1.0),
+  ];
+
+  final List<double> h = ImageEditService._computeHomography(from: dst, to: src);
+  final img.Image out = img.Image(width: outWidth, height: outHeight);
+
+  for (int y = 0; y < outHeight; y += 1) {
+    for (int x = 0; x < outWidth; x += 1) {
+      final Offset s = ImageEditService._applyHomography(h, x.toDouble(), y.toDouble());
+      final int sx = s.dx.round();
+      final int sy = s.dy.round();
+
+      if (sx < 0 || sy < 0 || sx >= source.width || sy >= source.height) {
+        out.setPixelRgba(x, y, 255, 255, 255, 255);
+      } else {
+        final img.Pixel p = source.getPixel(sx, sy);
+        out.setPixelRgba(x, y, p.r.toInt(), p.g.toInt(), p.b.toInt(), p.a.toInt());
+      }
+    }
+  }
+
+  return Uint8List.fromList(img.encodeJpg(out, quality: 95));
+}
+
+Uint8List _rotateBytes(_RotateRequest request) {
+  final img.Image? image = img.decodeImage(request.bytes);
+  if (image == null) {
+    throw Exception('Could not decode image');
+  }
+  final img.Image rotated = img.copyRotate(image, angle: request.degrees);
+  return Uint8List.fromList(img.encodeJpg(rotated, quality: 95));
+}
+
+Uint8List _filterBytes(_FilterRequest request) {
+  final img.Image? decoded = img.decodeImage(request.bytes);
+  if (decoded == null) {
+    throw Exception('Could not decode image');
+  }
+
+  img.Image image = decoded;
+  if (request.previewWidth != null && image.width > request.previewWidth!) {
+    image = img.copyResize(
+      image,
+      width: request.previewWidth,
+      interpolation: img.Interpolation.linear,
+    );
+  }
+
+  final EditorFilterType filter = EditorFilterType.values.firstWhere(
+    (EditorFilterType f) => f.name == request.filterName,
+    orElse: () => EditorFilterType.none,
+  );
+
+  image = ImageEditService._applyFilterToImage(image, filter);
+  return Uint8List.fromList(img.encodeJpg(image, quality: 92));
+}
+
+Uint8List _resizeBytes(_ResizeRequest request) {
+  final img.Image? image = img.decodeImage(request.bytes);
+  if (image == null) {
+    throw Exception('Could not decode image');
+  }
+
+  final EditorResizeMode mode = EditorResizeMode.values.firstWhere(
+    (EditorResizeMode v) => v.name == request.modeName,
+    orElse: () => EditorResizeMode.autoFit,
+  );
+
+  int targetWidth;
+  int targetHeight;
+  switch (mode) {
+    case EditorResizeMode.autoFit:
+      targetWidth = 1240;
+      targetHeight = 1754;
+      break;
+    case EditorResizeMode.a4:
+      targetWidth = 1654;
+      targetHeight = 2339;
+      break;
+    case EditorResizeMode.a3:
+      targetWidth = 2339;
+      targetHeight = 3307;
+      break;
+  }
+
+  final bool isLandscape = image.width > image.height;
+  if (isLandscape) {
+    final int oldWidth = targetWidth;
+    targetWidth = targetHeight;
+    targetHeight = oldWidth;
+  }
+
+  final img.Image resized = img.copyResize(
+    image,
+    width: targetWidth,
+    height: targetHeight,
+    interpolation: img.Interpolation.average,
+  );
+
+  return Uint8List.fromList(img.encodeJpg(resized, quality: 95));
 }

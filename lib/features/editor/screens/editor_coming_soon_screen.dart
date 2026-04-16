@@ -1,9 +1,9 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/painting.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../camera/models/camera_capture_result.dart';
@@ -55,6 +55,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   final Map<int, String> _filterOriginalPaths = <int, String>{};
 
   final Map<int, String> _autoOriginalPaths = <int, String>{};
+  final Map<int, int> _pendingRotationDegreesByPage = <int, int>{};
 
   int _previewGenerationToken = 0;
   Map<EditorFilterType, String> _filterPreviewPaths =
@@ -355,13 +356,17 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
         _isCropMode && index == _cropTargetIndex && _cropQuad != null;
 
     if (!isCropTarget) {
+      final int pendingDegrees = _pendingRotationDegreesByPage[index] ?? 0;
       return AnimatedSwitcher(
         duration: const Duration(milliseconds: 180),
         child: InteractiveViewer(
           key: ValueKey<String>(_pages[index].path),
           minScale: 0.9,
           maxScale: 4,
-          child: Image.file(File(_pages[index].path), fit: BoxFit.contain),
+          child: Transform.rotate(
+            angle: pendingDegrees * (math.pi / 180.0),
+            child: Image.file(File(_pages[index].path), fit: BoxFit.contain),
+          ),
         ),
       );
     }
@@ -821,12 +826,53 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     if (_isProcessing) {
       return;
     }
-    await _applyEdit(
-      actionName: 'Rotate',
-      run: (String path) => ImageEditService.rotateByDegrees(path, degrees),
-      showSuccessToast: false,
-    );
-    _prepareFilterPreviews();
+
+    final List<int> indexes = _applyToAllPages
+        ? List<int>.generate(_pages.length, (int i) => i)
+        : <int>[_currentPage];
+
+    setState(() {
+      _isProcessing = true;
+      _exitInlineModes();
+      for (final int index in indexes) {
+        final int current = _pendingRotationDegreesByPage[index] ?? 0;
+        _pendingRotationDegreesByPage[index] = (current + degrees) % 360;
+      }
+    });
+
+    try {
+      for (final int index in indexes) {
+        final String editedPath = await ImageEditService.rotateByDegrees(
+          _pages[index].path,
+          degrees,
+        );
+        _pages[index] = XFile(editedPath);
+      }
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isProcessing = false;
+        for (final int index in indexes) {
+          _pendingRotationDegreesByPage.remove(index);
+        }
+      });
+      _prepareFilterPreviews();
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isProcessing = false;
+        for (final int index in indexes) {
+          _pendingRotationDegreesByPage.remove(index);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rotate failed. Try a different image.')),
+      );
+    }
   }
 
   void _toggleFilterStrip() {

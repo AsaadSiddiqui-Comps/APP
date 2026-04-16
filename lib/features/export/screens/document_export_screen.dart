@@ -25,6 +25,7 @@ class DocumentExportScreen extends StatefulWidget {
 
 class _DocumentExportScreenState extends State<DocumentExportScreen> {
   bool _isExporting = false;
+  double _exportProgress = 0;
   ExportFormat _selectedExportFormat = ExportFormat.pdf;
   late String _documentName;
   double _estimatedSizeMb = 0;
@@ -305,8 +306,14 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 6),
+                        LinearProgressIndicator(
+                          value: _exportProgress > 0 ? _exportProgress : null,
+                        ),
+                        const SizedBox(height: 10),
                         Text(
-                          'Please keep the app open until the file is saved.',
+                          _exportProgress > 0
+                              ? 'Processing ${(100 * _exportProgress).clamp(0, 100).toStringAsFixed(0)}%'
+                              : 'Please keep the app open until the file is saved.',
                           textAlign: TextAlign.center,
                           style: Theme.of(
                             context,
@@ -467,6 +474,14 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         destinationDirectory: tempDir.path,
         fileName: _documentName,
         pages: widget.pages,
+        onProgress: (double progress) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _exportProgress = progress;
+          });
+        },
       );
 
       await DocumentStorageService.instance.saveFileToPublicDownloads(
@@ -508,6 +523,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
 
     setState(() {
       _isExporting = true;
+      _exportProgress = 0;
     });
 
     try {
@@ -529,6 +545,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
       if (mounted) {
         setState(() {
           _isExporting = false;
+          _exportProgress = 0;
         });
       }
     }
@@ -555,6 +572,14 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
           destinationDirectory: shareDir.path,
           fileName: _documentName,
           pages: widget.pages,
+          onProgress: (double progress) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _exportProgress = progress;
+            });
+          },
         );
         final File file = File(pdfPath);
         final Uint8List bytes = await file.readAsBytes();
@@ -570,6 +595,14 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         destinationDirectory: shareDir.path,
         fileName: _documentName,
         pages: widget.pages,
+        onProgress: (double progress) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _exportProgress = progress;
+          });
+        },
       );
       final File file = File(pdfPath);
       final Uint8List bytes = await file.readAsBytes();

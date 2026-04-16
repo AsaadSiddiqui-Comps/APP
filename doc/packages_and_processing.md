@@ -20,6 +20,33 @@ This document lists the active packages used in the app and what each one does i
 - printing: Print/share support for generated PDFs.
 - pdfium_flutter: PDF rendering backend dependency prepared for advanced PDF viewing/rendering workflows.
 
+### Processing Pipeline (Performance)
+
+- Heavy image operations are executed in background isolates to avoid blocking Flutter UI rendering.
+- Operations offloaded to isolates include:
+   - document edge detection
+   - perspective crop
+   - rotate
+   - filter (preview and final)
+   - resize
+   - PDF page preparation and final PDF build
+- UI behavior uses a staged flow:
+   - immediate visual response in editor
+   - lightweight preview output for filter strip
+   - full-quality processing in background for final apply/export
+
+### Caching and Memory Strategy
+
+- Image edit operations use parameter-keyed caching (source path + operation parameters).
+- Repeating the same operation on the same source reuses the previous generated file when available.
+- Cache entries are bounded with eviction (fixed max entries) to reduce memory growth risk during long edit sessions.
+
+### Export Responsiveness
+
+- PDF export work now runs in background isolate and reports progress to export UI.
+- Export UI shows progress updates while pages are prepared and while PDF bytes are being generated.
+- This reduces ANR risk on large multi-page documents.
+
 ## ML and Vision
 - google_ml_kit: ML utilities and base model integration support.
 - google_mlkit_document_scanner: Document scanning capabilities using ML Kit.

@@ -126,3 +126,113 @@ the thing is /sdcard/Android/data/com.pixeldev.Docly/files/Docly/exported
  this path is nto accessble by mobile bez of security in android 14+ so we have to make it proepr that it should export it to downlaod
 
 Searhc ofr better solution
+
+
+The application is currently experiencing UI freezes, delayed responses, and ANR-like behavior because all heavy image processing operations (crop, rotate, filters, resize, and PDF generation) are executed on the main UI isolate. This blocks rendering and interaction. The correct approach is to restructure the entire image-processing pipeline into a non-blocking, multi-stage system that separates preview rendering from final high-resolution processing while offloading all CPU-intensive work to background isolates.
+
+Start by introducing a unified processing pipeline that follows this flow: user action → instant UI feedback → low-resolution preview processing → background high-resolution processing → UI update. Every feature (crop, rotate, filters, export) must plug into this same pipeline.
+
+For crop operations, the lag occurs because the crop is applied only after pressing “Apply” and is processed synchronously. Instead, render the crop visually using an overlay (no processing yet), and only finalize the crop in a background isolate when the user confirms. The UI must respond instantly while the actual crop computation happens asynchronously.
+
+```dart
+Uint8List cropImage(Uint8List bytes) {
+  final img = decodeImage(bytes)!;
+  final cropped = copyCrop(img, x: 0, y: 0, width: 500, height: 500);
+  return Uint8List.fromList(encodeJpg(cropped));
+}
+
+// usage
+final result = await compute(cropImage, originalBytes);
+```
+
+For rotation, the delay comes from performing pixel transformations on large images on the main thread. Move rotation into an isolate and immediately reflect the change visually (e.g., temporary transform in UI), then replace with processed output once complete.
+
+```dart
+Uint8List rotateImage(Uint8List bytes) {
+  final img = decodeImage(bytes)!;
+  final rotated = copyRotate(img, 90);
+  return Uint8List.fromList(encodeJpg(rotated));
+}
+```
+
+For filters, the major issue is applying effects on full-resolution images. This must be split into two stages: preview and final. Generate a low-resolution version (e.g., width: 600px) for instant filter previews, and only apply the selected filter to the full-resolution image in the background when confirmed or during export.
+
+```dart
+Uint8List applyFilterPreview(Uint8List bytes) {
+  final img = decodeImage(bytes)!;
+  final small = copyResize(img, width: 600);
+  final gray = grayscale(small);
+  return Uint8List.fromList(encodeJpg(gray));
+}
+
+Uint8List applyFilterFull(Uint8List bytes) {
+  final img = decodeImage(bytes)!;
+  final gray = grayscale(img);
+  return Uint8List.fromList(encodeJpg(gray));
+}
+```
+
+The UI should instantly display the preview result, giving the illusion of immediate processing, while the high-quality version is computed in parallel or deferred until export.
+
+For resize operations, always downscale before applying transformations. Processing should follow: decode → resize → transform → encode. This reduces CPU load significantly and prevents memory spikes.
+
+For PDF export, the delay is caused by combining large images without compression and doing so on the UI thread. Move PDF generation into an isolate and compress images beforehand. Also provide user feedback via a progress indicator to avoid perceived freezing.
+
+```dart
+Uint8List generatePdf(List<Uint8List> images) {
+  final pdf = Document();
+  for (final imgBytes in images) {
+    final img = decodeImage(imgBytes)!;
+    final resized = copyResize(img, width: 1000);
+    final jpg = encodeJpg(resized);
+
+    pdf.addPage(Page(
+      build: (context) => Center(
+        child: Image(MemoryImage(jpg)),
+      ),
+    ));
+  }
+  return pdf.save();
+}
+
+// usage
+final pdfBytes = await compute(generatePdf, imageList);
+```
+
+To ensure smooth UX, every action must immediately update UI state before processing begins. For example:
+
+```dart
+setState(() => isProcessing = true);
+final result = await compute(...);
+setState(() => isProcessing = false);
+```
+
+Additionally, implement a caching layer so repeated operations (like applying the same filter or rotation) do not recompute unnecessarily. Store processed outputs keyed by transformation parameters.
+
+All processing must be memory-aware. Avoid keeping multiple full-resolution images in memory simultaneously. Dispose intermediate objects and prefer Uint8List reuse where possible.
+
+The final system should behave as follows: when the user taps any tool, the UI responds instantly using preview data; the heavy computation runs in parallel; the result replaces the preview seamlessly; export always uses the highest-quality processed data. This ensures the app feels fast, responsive, and comparable to native image editors while maintaining efficient CPU and storage usage.
+
+
+
+
+now this is done for now
+let make one page called files
+it have filter soreted by name or date and switches that exported and drafts
+
+and addon the thing that hold any file to open the option like if draft then it willoepn menu export to save on device option and sharing option {use icons also}
+
+also add a quick menu below like added signature and other things 
+and delete renaming it
+edit it
+this is for darft files
+
+the exproted has differ menu in that just save to device again open it {it will open it in app only we will be using pdfinum for endering that pdf and if on app opens if you want to on browser then simply the opened pdf on next screen therie will b e 3 dots in that it will show that open in defualt browser}
+
+share it
+here also add quick menu
+signature renain mg delte and all
+this is all for files
+
+and also make that when the there a recent and when click o the arrow it will redirect to the files page
+
