@@ -216,25 +216,6 @@ The final system should behave as follows: when the user taps any tool, the UI r
 
 
 
-now this is done for now
-let make one page called files
-it have filter soreted by name or date and switches that exported and drafts
-
-and addon the thing that hold any file to open the option like if draft then it willoepn menu export to save on device option and sharing option {use icons also}
-
-also add a quick menu below like added signature and other things 
-and delete renaming it
-edit it
-this is for darft files
-
-the exproted has differ menu in that just save to device again open it {it will open it in app only we will be using pdfinum for endering that pdf and if on app opens if you want to on browser then simply the opened pdf on next screen therie will b e 3 dots in that it will show that open in defualt browser}
-
-share it
-here also add quick menu
-signature renain mg delte and all
-this is all for files
-
-and also make that when the there a recent and when click o the arrow it will redirect to the files page
 
 ---
 
@@ -337,3 +318,38 @@ Benefits:
 - ✅ **Memory Efficient**: Native bitmaps, no Dart copies
 - ✅ **ANR Safe**: All heavy work off main thread
 
+
+things are littlbit fixed now it giving me fast repsone as normal
+just some issue is occured check out the screenshot i have uplaoded
+see the issue of it that croping filed is not proepr
+
+one more things to fix that when any flter applied like form none to like pro and after it filter to pro so now it like to show that it is showing that pro verion of is nowe mroe filterable
+i am try to say that 
+every time when filter applied it will be like fom non to pro and none to enahce so on not like none to pro then enhace that pro verion no
+
+and addon this that on exported is done thne it save this as draft and redirect me back to the home screen
+
+
+
+
+
+
+now this is done for now
+let make one page called files
+it have filter soreted by name or date and switches that exported and drafts
+
+and addon the thing that hold any file to open the option like if draft then it willoepn menu export to save on device option and sharing option {use icons also}
+
+also add a quick menu below like added signature and other things 
+and delete renaming it
+edit it
+this is for darft files
+
+the exproted has differ menu in that just save to device again open it {it will open it in app only we will be using pdfinum for endering that pdf and if on app opens if you want to on browser then simply the opened pdf on next screen therie will b e 3 dots in that it will show that open in defualt browser}
+
+share it
+here also add quick menu
+signature renain mg delte and all
+this is all for files
+
+and also make that when the there a recent and when click o the arrow it will redirect to the files page

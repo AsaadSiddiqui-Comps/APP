@@ -775,11 +775,17 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     });
 
     try {
-      final String warped =
-          await ImageEditService.cropByNormalizedQuadPerspective(
-            sourcePath,
-            _cropQuad!,
-          );
+      final String warped = await NativeImageProcessor.cropByNormalizedQuadPerspective(
+        sourcePath,
+        topLeftDx: _cropQuad!.topLeft.dx,
+        topLeftDy: _cropQuad!.topLeft.dy,
+        topRightDx: _cropQuad!.topRight.dx,
+        topRightDy: _cropQuad!.topRight.dy,
+        bottomRightDx: _cropQuad!.bottomRight.dx,
+        bottomRightDy: _cropQuad!.bottomRight.dy,
+        bottomLeftDx: _cropQuad!.bottomLeft.dx,
+        bottomLeftDy: _cropQuad!.bottomLeft.dy,
+      );
 
       if (!mounted) {
         return;
@@ -930,10 +936,12 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
           continue;
         }
 
-        _filterOriginalPaths[index] ??= _pages[index].path;
-        final String filtered = await ImageEditService.applyFilter(
-          _pages[index].path,
-          filter,
+        final String originalPath =
+            _filterOriginalPaths[index] ?? _pages[index].path;
+        _filterOriginalPaths[index] = originalPath;
+        final String filtered = await NativeImageProcessor.applyFilter(
+          originalPath,
+          filter.name,
         );
         _pages[index] = XFile(filtered);
         _appliedFilterByPage[index] = filter;
@@ -965,7 +973,8 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     }
 
     final int token = ++_previewGenerationToken;
-    final String sourcePath = _pages[_currentPage].path;
+    final String sourcePath =
+      _filterOriginalPaths[_currentPage] ?? _pages[_currentPage].path;
 
     setState(() {
       _filterPreviewPaths = <EditorFilterType, String>{
@@ -978,9 +987,9 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
         continue;
       }
       try {
-        final String preview = await ImageEditService.applyFilterPreview(
+        final String preview = await NativeImageProcessor.applyFilterPreview(
           sourcePath,
-          filter,
+          filter.name,
         );
         if (!mounted || token != _previewGenerationToken) {
           return;
@@ -1033,7 +1042,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
 
     await _applyEdit(
       actionName: 'Resize',
-      run: (String path) => ImageEditService.resize(path, mode),
+      run: (String path) => NativeImageProcessor.resize(path, mode.name),
       onEachUpdated: (int index) {
         _resizeModes[index] = mode;
       },

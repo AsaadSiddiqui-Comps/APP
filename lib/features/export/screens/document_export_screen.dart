@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../documents/data/document_draft_store.dart';
 import '../../documents/data/document_storage_service.dart';
+import '../../documents/models/document_draft.dart';
 import '../services/document_export_service.dart';
 
 class DocumentExportScreen extends StatefulWidget {
@@ -489,7 +491,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         displayName: '$_documentName.pdf',
         mimeType: 'application/pdf',
       );
-    }, successMessage: 'PDF exported to Downloads/Docly');
+    }, successMessage: 'PDF exported to Downloads/Docly', saveDraftAndExit: true);
   }
 
   Future<void> _exportImages() async {
@@ -510,12 +512,13 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
           mimeType: _imageMime(path),
         );
       }
-    }, successMessage: 'Images exported to Downloads/Docly');
+    }, successMessage: 'Images exported to Downloads/Docly', saveDraftAndExit: true);
   }
 
   Future<void> _runExport(
     Future<void> Function() action, {
     required String successMessage,
+    bool saveDraftAndExit = false,
   }) async {
     if (_isExporting) {
       return;
@@ -531,6 +534,12 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
       if (!mounted) {
         return;
       }
+
+      if (saveDraftAndExit) {
+        await _saveAsDraftAndGoHome();
+        return;
+      }
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
@@ -549,6 +558,33 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         });
       }
     }
+  }
+
+  Future<void> _saveAsDraftAndGoHome() async {
+    final String draftId = DateTime.now().millisecondsSinceEpoch.toString();
+    final List<String> persistedPaths = <String>[];
+
+    for (int i = 0; i < widget.pages.length; i += 1) {
+      final String saved = await DocumentStorageService.instance.copyPageToDraft(
+        widget.pages[i].path,
+        draftId,
+        i,
+      );
+      persistedPaths.add(saved);
+    }
+
+    final DocumentDraft draft = DocumentDraft(
+      id: draftId,
+      name: _documentName.trim().isEmpty ? 'Untitled scan' : _documentName.trim(),
+      pagePaths: persistedPaths,
+      updatedAt: DateTime.now(),
+    );
+
+    await DocumentDraftStore.instance.upsert(draft);
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
   }
 
   String _imageMime(String path) {

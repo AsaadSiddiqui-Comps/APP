@@ -98,14 +98,43 @@ class NativeImageProcessor {
     }
 
     final Uint8List bytes = await File(sourcePath).readAsBytes();
+    final (int imageWidth, int imageHeight) = await readImageSize(sourcePath);
+
+    final List<double> xs = <double>[
+      topLeftDx,
+      topRightDx,
+      bottomRightDx,
+      bottomLeftDx,
+    ].map((double v) => v.clamp(0.0, 1.0)).toList(growable: false);
+    final List<double> ys = <double>[
+      topLeftDy,
+      topRightDy,
+      bottomRightDy,
+      bottomLeftDy,
+    ].map((double v) => v.clamp(0.0, 1.0)).toList(growable: false);
+
+    final double minX = xs.reduce((double a, double b) => a < b ? a : b);
+    final double maxX = xs.reduce((double a, double b) => a > b ? a : b);
+    final double minY = ys.reduce((double a, double b) => a < b ? a : b);
+    final double maxY = ys.reduce((double a, double b) => a > b ? a : b);
+
+    final int x = (minX * imageWidth).floor().clamp(0, imageWidth - 1);
+    final int y = (minY * imageHeight).floor().clamp(0, imageHeight - 1);
+    final int width = ((maxX - minX) * imageWidth)
+        .round()
+        .clamp(1, imageWidth - x);
+    final int height = ((maxY - minY) * imageHeight)
+        .round()
+        .clamp(1, imageHeight - y);
+
     final Uint8List cropped = await _invokeNative(
       'crop',
       bytes,
       params: {
-        'x': 0, // Simplified for now; full homography crop can be added
-        'y': 0,
-        'width': 500,
-        'height': 700,
+        'x': x,
+        'y': y,
+        'width': width,
+        'height': height,
       },
     );
 
