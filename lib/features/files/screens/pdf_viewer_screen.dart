@@ -1,9 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../../../core/constants/app_colors.dart';
 
@@ -22,45 +21,58 @@ class PdfViewerScreen extends StatefulWidget {
 }
 
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
-  Uint8List? _bytes;
+  late final PdfViewerController _controller;
+  double _zoom = 1.0;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _controller = PdfViewerController();
   }
 
-  Future<void> _load() async {
+  Future<void> _share() async {
     final File file = File(widget.pdfPath);
     if (!await file.exists()) {
       return;
     }
-    final Uint8List bytes = await file.readAsBytes();
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _bytes = bytes;
-    });
+
+    final String fileName = file.uri.pathSegments.last;
+    final bytes = await file.readAsBytes();
+    await Printing.sharePdf(bytes: bytes, filename: fileName);
   }
 
-  Future<void> _share() async {
-    if (_bytes == null) {
-      return;
-    }
-    await Printing.sharePdf(bytes: _bytes!, filename: widget.title);
+  void _zoomIn() {
+    final double next = (_zoom + 0.25).clamp(1.0, 5.0);
+    _controller.zoomLevel = next;
+  }
+
+  void _zoomOut() {
+    final double next = (_zoom - 0.25).clamp(1.0, 5.0);
+    _controller.zoomLevel = next;
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final Color bg = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
 
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
         title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          IconButton(
+            tooltip: 'Zoom out',
+            onPressed: _zoomOut,
+            icon: const Icon(Icons.zoom_out_rounded),
+          ),
+          IconButton(
+            tooltip: 'Zoom in',
+            onPressed: _zoomIn,
+            icon: const Icon(Icons.zoom_in_rounded),
+          ),
           PopupMenuButton<String>(
             onSelected: (String value) {
               if (value == 'share') {
@@ -70,10 +82,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'share',
-                child: Text('Share'),
-              ),
+              const PopupMenuItem<String>(value: 'share', child: Text('Share')),
               const PopupMenuItem<String>(
                 value: 'open_external',
                 child: Text('Open in default browser/apps'),
@@ -82,16 +91,30 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           ),
         ],
       ),
-      body: _bytes == null
-          ? const Center(child: CircularProgressIndicator())
-          : PdfPreview(
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              allowPrinting: false,
-              allowSharing: false,
-              build: (PdfPageFormat format) async => _bytes!,
-            ),
+      body: File(widget.pdfPath).existsSync()
+          ? SfPdfViewer.file(
+              File(widget.pdfPath),
+              controller: _controller,
+              canShowPaginationDialog: true,
+              canShowScrollHead: true,
+              pageSpacing: 6,
+              onZoomLevelChanged: (PdfZoomDetails details) {
+                setState(() {
+                  _zoom = details.newZoomLevel;
+                });
+              },
+            )
+          : const Center(child: Text('PDF file not found.')),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          child: Text(
+            'Zoom ${(100 * _zoom).round()}%',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
     );
   }
 }

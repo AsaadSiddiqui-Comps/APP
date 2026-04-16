@@ -28,6 +28,9 @@ class _FilesScreenState extends State<FilesScreen> {
   FilesBucket _bucket = FilesBucket.drafts;
   FilesSort _sort = FilesSort.date;
   bool _loadingExported = true;
+  bool _sharingDraft = false;
+  double _shareProgress = 0.0;
+  String _shareLabel = 'Preparing...';
   List<FileSystemEntity> _exportedFiles = <FileSystemEntity>[];
 
   @override
@@ -42,7 +45,8 @@ class _FilesScreenState extends State<FilesScreen> {
       _loadingExported = true;
     });
 
-    final Directory dir = await DocumentStorageService.instance.getExportedDir();
+    final Directory dir = await DocumentStorageService.instance
+        .getExportedDir();
     final List<FileSystemEntity> entities = await dir.list().toList();
     final List<FileSystemEntity> files = entities
         .where((FileSystemEntity e) => FileSystemEntity.isFileSync(e.path))
@@ -61,12 +65,15 @@ class _FilesScreenState extends State<FilesScreen> {
   List<DocumentDraft> _sortedDrafts(List<DocumentDraft> input) {
     final List<DocumentDraft> drafts = List<DocumentDraft>.from(input);
     if (_sort == FilesSort.name) {
-      drafts.sort((DocumentDraft a, DocumentDraft b) => a.name
-          .toLowerCase()
-          .compareTo(b.name.toLowerCase()));
+      drafts.sort(
+        (DocumentDraft a, DocumentDraft b) =>
+            a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
     } else {
-      drafts.sort((DocumentDraft a, DocumentDraft b) =>
-          b.updatedAt.compareTo(a.updatedAt));
+      drafts.sort(
+        (DocumentDraft a, DocumentDraft b) =>
+            b.updatedAt.compareTo(a.updatedAt),
+      );
     }
     return drafts;
   }
@@ -74,10 +81,11 @@ class _FilesScreenState extends State<FilesScreen> {
   List<FileSystemEntity> _sortExported(List<FileSystemEntity> input) {
     final List<FileSystemEntity> files = List<FileSystemEntity>.from(input);
     if (_sort == FilesSort.name) {
-      files.sort((FileSystemEntity a, FileSystemEntity b) => a.uri.pathSegments
-          .last
-          .toLowerCase()
-          .compareTo(b.uri.pathSegments.last.toLowerCase()));
+      files.sort(
+        (FileSystemEntity a, FileSystemEntity b) => a.uri.pathSegments.last
+            .toLowerCase()
+            .compareTo(b.uri.pathSegments.last.toLowerCase()),
+      );
     } else {
       files.sort((FileSystemEntity a, FileSystemEntity b) {
         final DateTime am = File(a.path).lastModifiedSync();
@@ -112,7 +120,9 @@ class _FilesScreenState extends State<FilesScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final Color bg = isDark
+        ? AppColors.darkBackground
+        : AppColors.lightBackground;
     final Color panel = isDark
         ? AppColors.darkSurfaceContainerLow
         : AppColors.lightSurfaceContainer;
@@ -143,52 +153,92 @@ class _FilesScreenState extends State<FilesScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+              child: Column(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: panel,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _bucketChip(
+                            label: 'Drafts',
+                            selected: _bucket == FilesBucket.drafts,
+                            onTap: () {
+                              setState(() {
+                                _bucket = FilesBucket.drafts;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _bucketChip(
+                            label: 'Exported',
+                            selected: _bucket == FilesBucket.exported,
+                            onTap: () {
+                              setState(() {
+                                _bucket = FilesBucket.exported;
+                              });
+                              _loadExportedFiles();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: _bucket == FilesBucket.drafts
+                        ? _buildDrafts(isDark)
+                        : _buildExported(isDark),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_sharingDraft) _buildShareProgressOverlay(isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShareProgressOverlay(bool isDark) {
+    final Color cardColor = isDark
+        ? AppColors.darkSurfaceContainer
+        : AppColors.lightSurfaceContainer;
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black38,
+        alignment: Alignment.center,
+        child: Container(
+          width: 300,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: panel,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.all(6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _bucketChip(
-                        label: 'Drafts',
-                        selected: _bucket == FilesBucket.drafts,
-                        onTap: () {
-                          setState(() {
-                            _bucket = FilesBucket.drafts;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _bucketChip(
-                        label: 'Exported',
-                        selected: _bucket == FilesBucket.exported,
-                        onTap: () {
-                          setState(() {
-                            _bucket = FilesBucket.exported;
-                          });
-                          _loadExportedFiles();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              const Text(
+                'Preparing share',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: _bucket == FilesBucket.drafts
-                    ? _buildDrafts(isDark)
-                    : _buildExported(isDark),
-              ),
+              const SizedBox(height: 10),
+              LinearProgressIndicator(value: _shareProgress.clamp(0.0, 1.0)),
+              const SizedBox(height: 8),
+              Text(_shareLabel),
             ],
           ),
         ),
@@ -209,7 +259,9 @@ class _FilesScreenState extends State<FilesScreen> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: selected ? AppColors.primary.withOpacity(0.22) : Colors.transparent,
+          color: selected
+              ? AppColors.primary.withOpacity(0.22)
+              : Colors.transparent,
         ),
         child: Center(
           child: Text(
@@ -228,7 +280,9 @@ class _FilesScreenState extends State<FilesScreen> {
     return ListenableBuilder(
       listenable: DocumentDraftStore.instance,
       builder: (BuildContext context, Widget? child) {
-        final List<DocumentDraft> drafts = _sortedDrafts(DocumentDraftStore.instance.drafts);
+        final List<DocumentDraft> drafts = _sortedDrafts(
+          DocumentDraftStore.instance.drafts,
+        );
         if (drafts.isEmpty) {
           return const Center(child: Text('No drafts yet.'));
         }
@@ -381,7 +435,9 @@ class _FilesScreenState extends State<FilesScreen> {
                         color: Colors.black12,
                       ),
                       child: Icon(
-                        isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+                        isPdf
+                            ? Icons.picture_as_pdf_rounded
+                            : Icons.image_rounded,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -511,14 +567,111 @@ class _FilesScreenState extends State<FilesScreen> {
       return;
     }
 
-    final Directory dir = await DocumentStorageService.instance.getExportedDir();
-    final String pdfPath = await DocumentExportService.exportPdf(
-      destinationDirectory: dir.path,
-      fileName: draft.name,
-      pages: existingPaths.map((String p) => XFile(p)).toList(growable: false),
-    );
-    final Uint8List bytes = await File(pdfPath).readAsBytes();
-    await Printing.sharePdf(bytes: bytes, filename: File(pdfPath).uri.pathSegments.last);
+    try {
+      _setShareProgress(0.05, 'Checking existing export...');
+      final String signature = _buildDraftSignature(draft.name, existingPaths);
+      final String? reusablePdf = _findReusablePdf(draft, signature);
+
+      String pdfPath;
+      if (reusablePdf != null) {
+        pdfPath = reusablePdf;
+        _setShareProgress(0.7, 'Using existing PDF...');
+      } else {
+        _setShareProgress(0.1, 'Exporting PDF...');
+        final Directory dir = await DocumentStorageService.instance
+            .getExportedDir();
+        pdfPath = await DocumentExportService.exportPdf(
+          destinationDirectory: dir.path,
+          fileName: draft.name,
+          pages: existingPaths
+              .map((String p) => XFile(p))
+              .toList(growable: false),
+          onProgress: (double progress) {
+            _setShareProgress(0.1 + (0.8 * progress), 'Exporting PDF...');
+          },
+        );
+
+        await DocumentDraftStore.instance.upsert(
+          draft.copyWith(
+            exportedPdfPath: pdfPath,
+            exportedSignature: signature,
+          ),
+        );
+      }
+
+      _setShareProgress(0.95, 'Opening share sheet...');
+      final File file = File(pdfPath);
+      final Uint8List bytes = await file.readAsBytes();
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: file.uri.pathSegments.last,
+      );
+      _setShareProgress(1.0, 'Done');
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to prepare draft for sharing.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sharingDraft = false;
+          _shareProgress = 0.0;
+          _shareLabel = 'Preparing...';
+        });
+      }
+    }
+  }
+
+  void _setShareProgress(double progress, String label) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sharingDraft = true;
+      _shareProgress = progress;
+      _shareLabel = label;
+    });
+  }
+
+  String _buildDraftSignature(String name, List<String> paths) {
+    final StringBuffer buffer = StringBuffer(name.trim().toLowerCase());
+    for (final String path in paths) {
+      final File file = File(path);
+      if (!file.existsSync()) {
+        continue;
+      }
+      final FileStat stat = file.statSync();
+      buffer
+        ..write('|')
+        ..write(path)
+        ..write(':')
+        ..write(stat.size)
+        ..write(':')
+        ..write(stat.modified.millisecondsSinceEpoch);
+    }
+    return buffer.toString();
+  }
+
+  String? _findReusablePdf(DocumentDraft draft, String currentSignature) {
+    final String? path = draft.exportedPdfPath;
+    if (path == null || path.isEmpty) {
+      return null;
+    }
+    if (draft.exportedSignature != currentSignature) {
+      return null;
+    }
+
+    final File exported = File(path);
+    if (!exported.existsSync()) {
+      return null;
+    }
+    if (exported.lengthSync() <= 0) {
+      return null;
+    }
+    return path;
   }
 
   Future<void> _openExported(File file) async {
@@ -529,7 +682,10 @@ class _FilesScreenState extends State<FilesScreen> {
       }
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => PdfViewerScreen(pdfPath: file.path, title: file.uri.pathSegments.last),
+          builder: (_) => PdfViewerScreen(
+            pdfPath: file.path,
+            title: file.uri.pathSegments.last,
+          ),
         ),
       );
       return;
@@ -566,9 +722,9 @@ class _FilesScreenState extends State<FilesScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved to Downloads/Docly')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Saved to Downloads/Docly')));
   }
 
   Future<void> _shareExported(File file) async {
@@ -583,7 +739,9 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   Future<void> _renameDraft(DocumentDraft draft) async {
-    final TextEditingController controller = TextEditingController(text: draft.name);
+    final TextEditingController controller = TextEditingController(
+      text: draft.name,
+    );
     final String? value = await showDialog<String>(
       context: context,
       builder: (BuildContext context) {
@@ -596,7 +754,8 @@ class _FilesScreenState extends State<FilesScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
               child: const Text('Save'),
             ),
           ],
@@ -656,7 +815,8 @@ class _FilesScreenState extends State<FilesScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
               child: const Text('Save'),
             ),
           ],
@@ -682,7 +842,9 @@ class _FilesScreenState extends State<FilesScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete file?'),
-          content: const Text('This removes the exported file from app storage.'),
+          content: const Text(
+            'This removes the exported file from app storage.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -708,9 +870,9 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature coming soon.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$feature coming soon.')));
   }
 
   Future<void> _showDraftMenu(DocumentDraft draft) async {
@@ -763,7 +925,10 @@ class _FilesScreenState extends State<FilesScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: AppColors.error),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.error,
+                ),
                 title: const Text('Delete'),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -827,7 +992,10 @@ class _FilesScreenState extends State<FilesScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: AppColors.error),
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.error,
+                ),
                 title: const Text('Delete'),
                 onTap: () {
                   Navigator.of(context).pop();

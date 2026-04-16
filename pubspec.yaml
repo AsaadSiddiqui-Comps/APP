@@ -54,6 +54,7 @@ dependencies:
   image: ^4.8.0
   opencv_dart: 2.2.1+4
   pdfium_flutter: 0.1.9
+  syncfusion_flutter_pdfviewer: ^29.2.7
 
 dev_dependencies:
   flutter_test:

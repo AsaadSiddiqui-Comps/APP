@@ -5,6 +5,8 @@ class DocumentDraft {
     required this.pagePaths,
     required this.filterBasePaths,
     required this.updatedAt,
+    this.exportedPdfPath,
+    this.exportedSignature,
   });
 
   final String id;
@@ -12,6 +14,8 @@ class DocumentDraft {
   final List<String> pagePaths;
   final List<String> filterBasePaths;
   final DateTime updatedAt;
+  final String? exportedPdfPath;
+  final String? exportedSignature;
 
   String get thumbnailPath => pagePaths.isNotEmpty ? pagePaths.first : '';
 
@@ -21,6 +25,8 @@ class DocumentDraft {
     List<String>? pagePaths,
     List<String>? filterBasePaths,
     DateTime? updatedAt,
+    String? exportedPdfPath,
+    String? exportedSignature,
   }) {
     return DocumentDraft(
       id: id ?? this.id,
@@ -28,6 +34,8 @@ class DocumentDraft {
       pagePaths: pagePaths ?? this.pagePaths,
       filterBasePaths: filterBasePaths ?? this.filterBasePaths,
       updatedAt: updatedAt ?? this.updatedAt,
+      exportedPdfPath: exportedPdfPath ?? this.exportedPdfPath,
+      exportedSignature: exportedSignature ?? this.exportedSignature,
     );
   }
 
@@ -38,6 +46,8 @@ class DocumentDraft {
       'pagePaths': pagePaths,
       'filterBasePaths': filterBasePaths,
       'updatedAt': updatedAt.toIso8601String(),
+      'exportedPdfPath': exportedPdfPath,
+      'exportedSignature': exportedSignature,
     };
   }
 
@@ -57,6 +67,8 @@ class DocumentDraft {
       pagePaths: pages,
       filterBasePaths: filterBases,
       updatedAt: DateTime.parse(map['updatedAt'] as String),
+      exportedPdfPath: map['exportedPdfPath'] as String?,
+      exportedSignature: map['exportedSignature'] as String?,
     );
   }
 }
