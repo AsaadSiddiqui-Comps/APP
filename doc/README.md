@@ -19,6 +19,9 @@ Welcome to the PhotoToPDF App Documentation! Start here to find what you need.
 ### **Need a Visual Reference?**
 → [VISUAL_SUMMARY.md](VISUAL_SUMMARY.md) - Visual layout and UI reference
 
+### **Need Files & PDF Flow Details?**
+→ [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Includes Files page, Draft/Exported switching, and in-app PDF viewer architecture
+
 ### **Want to Verify Everything?**
 → [FILE_CHECKLIST.md](FILE_CHECKLIST.md) - Complete file and feature checklist
 
@@ -38,6 +41,7 @@ Welcome to the PhotoToPDF App Documentation! Start here to find what you need.
 | **VISUAL_SUMMARY.md** | Visual layout and UI reference |
 | **FILE_CHECKLIST.md** | File verification and feature checklist |
 | **IMPLEMENTATION_SUMMARY.md** | Overview of what's been implemented |
+| **PROJECT_STRUCTURE.md** | Includes Files page flow and external PDF open support |
 
 ---
 

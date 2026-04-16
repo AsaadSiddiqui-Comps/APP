@@ -336,9 +336,10 @@ and addon this that on exported is done thne it save this as draft and redirect 
 
 now this is done for now
 let make one page called files
-it have filter soreted by name or date and switches that exported and drafts
+it have filter(options) -> soreted by name or date and 
+switches button that exported and drafts
 
-and addon the thing that hold any file to open the option like if draft then it willoepn menu export to save on device option and sharing option {use icons also}
+and addon the thing that in hold any file to open the option like if draft then it willoepn menu export this scan and sharing option {use icons also}
 
 also add a quick menu below like added signature and other things 
 and delete renaming it
@@ -353,3 +354,9 @@ signature renain mg delte and all
 this is all for files
 
 and also make that when the there a recent and when click o the arrow it will redirect to the files page
+
+
+mkaethe pdf viewer inbuilt app only so our exported pdf cna be open via app 
+we are makeing one page files in that files adn draft will be there which are exported by app
+
+and addon thing that the outside pdf like we click on it so it option that onpen in drive,other apps, so here you have to make that here our app should also visible and when click so the custom non app pdf should also open

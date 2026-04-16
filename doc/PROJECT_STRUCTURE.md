@@ -15,6 +15,8 @@ lib/
 │   │   ├── app_colors.dart        # All color definitions
 │   │   ├── app_constants.dart     # String constants and sizing
 │   │   └── constants.dart         # Constants exports
+│   ├── services/
+│   │   └── external_file_open_service.dart # Android intent bridge for external PDF open
 │   └── utilities/                 # Utility functions (future)
 ├── features/
 │   ├── home/
@@ -27,7 +29,11 @@ lib/
 │   │       └── widgets.dart            # Widgets exports
 │   ├── tools/                   # PDF editing tools (future)
 │   ├── gallery/                 # Photo gallery management (future)
-│   └── pdf_editor/              # PDF editing features (future)
+│   ├── pdf_editor/              # PDF editing features (future)
+│   └── files/
+│       └── screens/
+│           ├── files_screen.dart       # Draft/Exported manager with sort, quick actions, and hold menu
+│           └── pdf_viewer_screen.dart  # In-app PDF viewer (open in app + share/open externally)
 └── main.dart                    # App entry point
 
 ```
@@ -97,6 +103,23 @@ lib/
 - Routes to HomeScreen
 
 ## Key Features Implemented
+
+### ✅ Files Page + In-App PDF Viewer
+- Added dedicated Files page with bucket switch:
+   - Drafts
+   - Exported
+- Added sorting options:
+   - Date
+   - Name
+- Added long-press and quick-action menus with icons for:
+   - Edit
+   - Export this scan
+   - Share
+   - Add signature (placeholder)
+   - Rename
+   - Delete
+- Added in-app PDF viewer screen for exported files.
+- Added external PDF intent bridge so Docly can appear in Android open/share sheet for PDF files.
 
 ### ✅ Light & Dark Mode Support
 - Complete theme system with Material 3 design

@@ -6,10 +6,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/external_file_open_service.dart';
 import '../../camera/screens/camera_capture_screen.dart';
 import '../../documents/data/document_draft_store.dart';
 import '../../documents/models/document_draft.dart';
 import '../../editor/screens/editor_coming_soon_screen.dart';
+import '../../files/screens/files_screen.dart';
+import '../../files/screens/pdf_viewer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,13 +21,45 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     DocumentDraftStore.instance.initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _consumeExternalPdfOpen();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _consumeExternalPdfOpen();
+    }
+  }
+
+  Future<void> _consumeExternalPdfOpen() async {
+    final String? path = await ExternalFileOpenService.consumePendingPdfPath();
+    if (!mounted || path == null || path.isEmpty) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PdfViewerScreen(
+          pdfPath: path,
+          title: 'External PDF',
+        ),
+      ),
+    );
   }
 
   final List<Map<String, dynamic>> _quickActions = <Map<String, dynamic>>[
@@ -135,7 +170,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: titleColor,
                   ),
                 ),
-                Icon(Icons.arrow_forward_rounded, color: subColor),
+                IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const FilesScreen(),
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.arrow_forward_rounded, color: subColor),
+                ),
               ],
             ),
             const SizedBox(height: 12),

@@ -53,6 +53,41 @@ class DocumentDraftStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> rename(String id, String newName) async {
+    await initialize();
+    final int index = _drafts.indexWhere((DocumentDraft d) => d.id == id);
+    if (index == -1) {
+      return;
+    }
+    _drafts[index] = _drafts[index].copyWith(
+      name: newName,
+      updatedAt: DateTime.now(),
+    );
+    await _saveToDisk();
+    notifyListeners();
+  }
+
+  Future<void> remove(String id) async {
+    await initialize();
+    final int index = _drafts.indexWhere((DocumentDraft d) => d.id == id);
+    if (index == -1) {
+      return;
+    }
+
+    _drafts.removeAt(index);
+
+    final Directory draftsDir = await DocumentStorageService.instance.getDraftsDir();
+    final Directory draftFolder = Directory(
+      '${draftsDir.path}${Platform.pathSeparator}$id',
+    );
+    if (await draftFolder.exists()) {
+      await draftFolder.delete(recursive: true);
+    }
+
+    await _saveToDisk();
+    notifyListeners();
+  }
+
   Future<void> _loadFromDisk() async {
     final File file = await _draftsIndexFile();
     if (!await file.exists()) {

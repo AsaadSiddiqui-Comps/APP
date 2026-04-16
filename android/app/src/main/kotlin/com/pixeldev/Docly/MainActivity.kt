@@ -1,7 +1,10 @@
 package com.pixeldev.Docly
 
+import android.content.Intent
 import android.content.ContentValues
+import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import io.flutter.embedding.engine.FlutterEngine
@@ -10,11 +13,25 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.embedding.android.FlutterActivity
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 
 class MainActivity : FlutterActivity() {
     private val storageChannel = "com.pixeldev.Docly/storage"
     private val imageChannel = "com.pixeldev.Docly/image"
+    private val fileOpenChannel = "com.pixeldev.Docly/file_open"
     private val imageProcessor = ImageProcessor()
+    private var pendingPdfPath: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        captureIncomingPdf(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureIncomingPdf(intent)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -34,6 +51,72 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, fileOpenChannel)
+            .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
+                when (call.method) {
+                    "consumePendingPdfPath" -> {
+                        val path = pendingPdfPath
+                        pendingPdfPath = null
+                        result.success(path)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun captureIncomingPdf(intent: Intent?) {
+        if (intent == null) {
+            return
+        }
+
+        try {
+            when (intent.action) {
+                Intent.ACTION_VIEW -> {
+                    val uri = intent.data
+                    if (uri != null && isPdfIntent(uri, intent.type)) {
+                        pendingPdfPath = copyUriToCache(uri)
+                    }
+                }
+                Intent.ACTION_SEND -> {
+                    val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                    }
+                    if (uri != null && isPdfIntent(uri, intent.type)) {
+                        pendingPdfPath = copyUriToCache(uri)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun isPdfIntent(uri: Uri, mimeType: String?): Boolean {
+        val lowerType = mimeType?.lowercase() ?: ""
+        if (lowerType.contains("application/pdf")) {
+            return true
+        }
+        val path = uri.toString().lowercase()
+        return path.endsWith(".pdf")
+    }
+
+    private fun copyUriToCache(uri: Uri): String? {
+        return try {
+            val name = "external_${System.currentTimeMillis()}.pdf"
+            val target = File(cacheDir, name)
+
+            contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(target).use { out ->
+                    input.copyTo(out)
+                }
+            }
+            target.absolutePath
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun processImage(call: MethodCall, result: MethodChannel.Result) {
