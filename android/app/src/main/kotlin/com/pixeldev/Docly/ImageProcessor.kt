@@ -1,4 +1,4 @@
-package com.pixeldev.docly
+package com.pixeldev.Docly
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

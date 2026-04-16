@@ -12,6 +12,7 @@ import '../../documents/data/document_draft_store.dart';
 import '../../documents/data/document_storage_service.dart';
 import '../../documents/models/document_draft.dart';
 import '../../export/screens/document_export_screen.dart';
+import '../services/image_edit_service.dart';
 import '../services/native_image_processor.dart';
 import '../services/operation_queue.dart';
 
@@ -41,6 +42,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   bool _applyToAllPages = false;
   late final OperationQueue _operationQueue;
   late final Set<int> _pagesBusy;
+  bool _isProcessing = false;
   int _currentPage = 0;
 
   bool _isCropMode = false;
