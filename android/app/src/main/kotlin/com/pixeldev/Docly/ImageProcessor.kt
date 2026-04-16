@@ -135,7 +135,8 @@ class ImageProcessor {
     }
 
     private fun applyFilterEffect(bitmap: Bitmap, filterName: String): Bitmap {
-        val result = Bitmap.createBitmap(bitmap.width, bitmap.height, bitmap.config)
+        val config = bitmap.config ?: Bitmap.Config.ARGB_8888
+        val result = Bitmap.createBitmap(bitmap.width, bitmap.height, config)
         val canvas = Canvas(result)
         val paint = Paint()
 
