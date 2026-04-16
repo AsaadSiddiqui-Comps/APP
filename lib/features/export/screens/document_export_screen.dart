@@ -16,10 +16,12 @@ class DocumentExportScreen extends StatefulWidget {
     super.key,
     required this.pages,
     required this.documentName,
+    this.onDocumentNameChanged,
   });
 
   final List<XFile> pages;
   final String documentName;
+  final ValueChanged<String>? onDocumentNameChanged;
 
   @override
   State<DocumentExportScreen> createState() => _DocumentExportScreenState();
@@ -577,6 +579,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
       id: draftId,
       name: _documentName.trim().isEmpty ? 'Untitled scan' : _documentName.trim(),
       pagePaths: persistedPaths,
+      filterBasePaths: persistedPaths,
       updatedAt: DateTime.now(),
     );
 
@@ -712,6 +715,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
     setState(() {
       _documentName = renamed;
     });
+    widget.onDocumentNameChanged?.call(renamed);
   }
 
   void _confirmDelete() {

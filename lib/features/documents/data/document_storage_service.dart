@@ -202,17 +202,77 @@ class DocumentStorageService {
     String draftId,
     int index,
   ) async {
+    return _copyPageToDraftInternal(
+      sourcePath,
+      draftId,
+      index,
+      'files',
+    );
+  }
+
+  Future<String> copyPageToDraftInCategory(
+    String sourcePath,
+    String draftId,
+    int index,
+    String category,
+  ) async {
+    return _copyPageToDraftInternal(
+      sourcePath,
+      draftId,
+      index,
+      category,
+    );
+  }
+
+  Future<String> _copyPageToDraftInternal(
+    String sourcePath,
+    String draftId,
+    int index,
+    String category,
+  ) async {
+    final File source = File(sourcePath);
+    if (!await source.exists()) {
+      throw Exception('Draft source file missing: $sourcePath');
+    }
+    if (await source.length() == 0) {
+      throw Exception('Draft source file is empty: $sourcePath');
+    }
+
     final Directory drafts = await getDraftsDir();
     final Directory draftDir = Directory(
       '${drafts.path}${Platform.pathSeparator}$draftId',
     );
-    await draftDir.create(recursive: true);
+    final Directory categoryDir = Directory(
+      '${draftDir.path}${Platform.pathSeparator}$category',
+    );
+    await categoryDir.create(recursive: true);
 
     final String extension = _extension(sourcePath);
     final String name =
         'page_${(index + 1).toString().padLeft(3, '0')}_$draftId$extension';
-    final String targetPath = '${draftDir.path}${Platform.pathSeparator}$name';
-    await File(sourcePath).copy(targetPath);
+    final String targetPath =
+        '${categoryDir.path}${Platform.pathSeparator}$name';
+
+    // Write to temp first, then atomically replace to avoid half-written files.
+    final String tempPath = '$targetPath.tmp';
+    final File tempFile = await source.copy(tempPath);
+    if (await tempFile.length() == 0) {
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+      throw Exception('Draft copy produced empty file: $targetPath');
+    }
+
+    final File target = File(targetPath);
+    if (await target.exists()) {
+      await target.delete();
+    }
+    await tempFile.rename(targetPath);
+
+    if (await target.length() == 0) {
+      throw Exception('Draft target file is empty: $targetPath');
+    }
+
     return targetPath;
   }
 

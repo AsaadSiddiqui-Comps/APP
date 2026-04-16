@@ -64,6 +64,8 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
   int _previewGenerationToken = 0;
   Map<EditorFilterType, String> _filterPreviewPaths =
       <EditorFilterType, String>{};
+  late final List<String> _initialPagePaths;
+  late final String _initialName;
 
   @override
   void initState() {
@@ -86,6 +88,25 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
         widget.initialName ??
         'Scan ${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
     _nameController = TextEditingController(text: defaultName);
+    _initialPagePaths = _pages.map((XFile e) => e.path).toList(growable: false);
+    _initialName = _nameController.text.trim();
+
+    if (widget.existingDraftId != null) {
+      final DocumentDraft? draft = DocumentDraftStore.instance.findById(
+        widget.existingDraftId!,
+      );
+      if (draft != null) {
+        for (int i = 0; i < draft.filterBasePaths.length; i += 1) {
+          if (i >= _pages.length) {
+            break;
+          }
+          final String basePath = draft.filterBasePaths[i];
+          if (basePath.isNotEmpty && File(basePath).existsSync()) {
+            _filterOriginalPaths[i] = basePath;
+          }
+        }
+      }
+    }
 
     _prepareFilterPreviews();
   }
@@ -928,7 +949,7 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
     try {
       for (final int index in indexes) {
         if (filter == EditorFilterType.none) {
-          final String? original = _filterOriginalPaths.remove(index);
+          final String? original = _filterOriginalPaths[index];
           if (original != null) {
             _pages[index] = XFile(original);
           }
@@ -1198,16 +1219,33 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
 
     try {
       final List<String> persistedPaths = <String>[];
+      final List<String> persistedFilterBases = <String>[];
       for (int i = 0; i < _pages.length; i += 1) {
         final String saved = await DocumentStorageService.instance
-            .copyPageToDraft(_pages[i].path, draftId, i);
+          .copyPageToDraft(_pages[i].path, draftId, i);
         persistedPaths.add(saved);
+
+        final String filterBaseSource =
+            _filterOriginalPaths[i] ?? _pages[i].path;
+        if (filterBaseSource == _pages[i].path) {
+          persistedFilterBases.add(saved);
+        } else {
+          final String baseSaved = await DocumentStorageService.instance
+              .copyPageToDraftInCategory(
+                filterBaseSource,
+                draftId,
+                i,
+                'filter_base',
+              );
+          persistedFilterBases.add(baseSaved);
+        }
       }
 
       final DocumentDraft draft = DocumentDraft(
         id: draftId,
         name: name,
         pagePaths: persistedPaths,
+        filterBasePaths: persistedFilterBases,
         updatedAt: DateTime.now(),
       );
 
@@ -1282,6 +1320,11 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
       return false;
     }
 
+    if (!_hasUnsavedChanges()) {
+      _goHomeWithoutSaving();
+      return false;
+    }
+
     final String? action = await showDialog<String>(
       context: context,
       builder: (BuildContext context) {
@@ -1323,6 +1366,22 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
 
   void _goHomeWithoutSaving() {
     Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+  }
+
+  bool _hasUnsavedChanges() {
+    final String currentName = _nameController.text.trim();
+    if (currentName != _initialName) {
+      return true;
+    }
+    if (_pages.length != _initialPagePaths.length) {
+      return true;
+    }
+    for (int i = 0; i < _pages.length; i += 1) {
+      if (_pages[i].path != _initialPagePaths[i]) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _showEditorMenu() {
@@ -1369,6 +1428,14 @@ class _EditorComingSoonScreenState extends State<EditorComingSoonScreen>
           documentName: _nameController.text.trim().isEmpty
               ? 'Untitled scan'
               : _nameController.text.trim(),
+          onDocumentNameChanged: (String nextName) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _nameController.text = nextName;
+            });
+          },
         ),
       ),
     );

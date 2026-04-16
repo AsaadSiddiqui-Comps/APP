@@ -88,6 +88,27 @@ class _FilesScreenState extends State<FilesScreen> {
     return files;
   }
 
+  List<String> _resolvedDraftPaths(DocumentDraft draft) {
+    final List<String> resolved = <String>[];
+    for (int i = 0; i < draft.pagePaths.length; i += 1) {
+      final String primary = draft.pagePaths[i];
+      final File primaryFile = File(primary);
+      if (primaryFile.existsSync() && primaryFile.lengthSync() > 0) {
+        resolved.add(primary);
+        continue;
+      }
+
+      if (i < draft.filterBasePaths.length) {
+        final String fallback = draft.filterBasePaths[i];
+        final File fallbackFile = File(fallback);
+        if (fallbackFile.existsSync() && fallbackFile.lengthSync() > 0) {
+          resolved.add(fallback);
+        }
+      }
+    }
+    return resolved;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -445,9 +466,7 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   Future<void> _openDraft(DocumentDraft draft) async {
-    final List<String> existingPaths = draft.pagePaths
-        .where((String path) => File(path).existsSync())
-        .toList(growable: false);
+    final List<String> existingPaths = _resolvedDraftPaths(draft);
     if (existingPaths.isEmpty || !mounted) {
       return;
     }
@@ -468,9 +487,7 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   Future<void> _exportDraft(DocumentDraft draft) async {
-    final List<String> existingPaths = draft.pagePaths
-        .where((String path) => File(path).existsSync())
-        .toList(growable: false);
+    final List<String> existingPaths = _resolvedDraftPaths(draft);
     if (existingPaths.isEmpty || !mounted) {
       return;
     }
@@ -489,9 +506,7 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   Future<void> _shareDraft(DocumentDraft draft) async {
-    final List<String> existingPaths = draft.pagePaths
-        .where((String path) => File(path).existsSync())
-        .toList(growable: false);
+    final List<String> existingPaths = _resolvedDraftPaths(draft);
     if (existingPaths.isEmpty) {
       return;
     }

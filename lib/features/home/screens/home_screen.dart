@@ -638,9 +638,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openDraft(DocumentDraft draft) async {
-    final List<String> existingPaths = draft.pagePaths
-        .where((String path) => File(path).existsSync())
-        .toList(growable: false);
+    final List<String> existingPaths = <String>[];
+    for (int i = 0; i < draft.pagePaths.length; i += 1) {
+      final String primary = draft.pagePaths[i];
+      final File primaryFile = File(primary);
+      if (primaryFile.existsSync() && primaryFile.lengthSync() > 0) {
+        existingPaths.add(primary);
+        continue;
+      }
+
+      if (i < draft.filterBasePaths.length) {
+        final String fallback = draft.filterBasePaths[i];
+        final File fallbackFile = File(fallback);
+        if (fallbackFile.existsSync() && fallbackFile.lengthSync() > 0) {
+          existingPaths.add(fallback);
+        }
+      }
+    }
 
     if (existingPaths.isEmpty) {
       if (!mounted) {
