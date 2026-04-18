@@ -362,4 +362,56 @@ we are makeing one page files in that files adn draft will be there which are ex
 and addon thing that the outside pdf like we click on it so it option that onpen in drive,other apps, so here you have to make that here our app should also visible and when click so the custom non app pdf should also open
 
 
-Now next we will be adding pdf Editor normal like edge browser 
+Now next we will be adding pdf Editor normal like edge browser do {its from adobe arcobat}
+
+when pdf viewer open on side a floating button will be there best and better when it will be clickied it will open one menue stylish and best hoving menu smooth transsitation effects
+
+in that there will be options like 
+{ICON} Highlighter in bottom of enahc a small subttile/tag line will be written
+{ICON} Draw
+{ICON} Add Text
+
+first if highligter
+when its clicked
+it will oepn menu
+with pdf in editing mode 
+below menu wil be their and abovethe pdf it will suport the 2 finger pintzoom laso
+
+it will have option in menu
+colors
+qpacity slider
+modes 
+h va attaced the phot for this how it would be like
+add auto hight fixer for text
+
+
+now adding text
+when text will be selected it will open same as like mneu 
+text color
+background
+font (some fonts)
+size slider
+alignment 3 types
+
+adding text will better enhacement make a better approach search it on web for more
+i have attached the desgins see that some buttons are also their think about their implmentation if better then also implmenti ti like keyboard opener in text  much more
+
+undo and redo option
+
+now the last 
+Draw 
+here user cna draw on the pdf like sketch
+
+it will have 
+colors
+brush width lsider
+qapacity slider
+
+
+Some fix in previous changes
+remove that below bottom bar
+and add one thing in meu list search in pdf the serched text will eb higlihted
+
+and see when the externa pdf opens it shows first the app home screen then tit ope npdf viewr but i dont want like that when external pdf opens it wil directly open it on dpf viewer for soomth perfomace less wating time
+
+and laos the like pdf is open then i scroll it it feels too much laggy so we have to implmenti t more better way and natively to make it much faster as possible

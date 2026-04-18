@@ -23,7 +23,6 @@ class PdfViewerScreen extends StatefulWidget {
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
   late final PdfViewerController _controller;
   final TextEditingController _searchController = TextEditingController();
-  double _zoom = 1.0;
   int _currentPage = 1;
   int _pageCount = 0;
   bool _isLoading = true;
@@ -57,27 +56,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _zoomIn() {
-    final double next = (_zoom + 0.25).clamp(1.0, 5.0);
+    final double next = (_controller.zoomLevel + 0.25).clamp(1.0, 5.0);
     _controller.zoomLevel = next;
   }
 
   void _zoomOut() {
-    final double next = (_zoom - 0.25).clamp(1.0, 5.0);
+    final double next = (_controller.zoomLevel - 0.25).clamp(1.0, 5.0);
     _controller.zoomLevel = next;
-  }
-
-  void _nextPage() {
-    if (_currentPage >= _pageCount) {
-      return;
-    }
-    _controller.nextPage();
-  }
-
-  void _previousPage() {
-    if (_currentPage <= 1) {
-      return;
-    }
-    _controller.previousPage();
   }
 
   void _toggleChrome() {
@@ -247,11 +232,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       actions: [
         IconButton(
-          tooltip: 'Search',
-          onPressed: _openSearchMode,
-          icon: const Icon(Icons.search_rounded),
-        ),
-        IconButton(
           tooltip: 'Zoom out',
           onPressed: _zoomOut,
           icon: const Icon(Icons.zoom_out_rounded),
@@ -263,13 +243,25 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ),
         PopupMenuButton<String>(
           onSelected: (String value) {
-            if (value == 'share') {
+            if (value == 'search_pdf') {
+              _openSearchMode();
+            } else if (value == 'jump_page') {
+              _showJumpToPageDialog();
+            } else if (value == 'share') {
               _share();
             } else if (value == 'open_external') {
               _share();
             }
           },
           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(
+              value: 'search_pdf',
+              child: Text('Search in PDF'),
+            ),
+            const PopupMenuItem<String>(
+              value: 'jump_page',
+              child: Text('Jump to page'),
+            ),
             const PopupMenuItem<String>(value: 'share', child: Text('Share')),
             const PopupMenuItem<String>(
               value: 'open_external',
@@ -278,55 +270,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildStatusBar(bool isDark) {
-    final Color panel = isDark
-        ? AppColors.darkSurfaceContainer
-        : AppColors.lightSurfaceContainer;
-    return SafeArea(
-      top: false,
-      child: Container(
-        color: panel,
-        padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: 'Previous page',
-              onPressed: _previousPage,
-              icon: const Icon(Icons.chevron_left_rounded),
-            ),
-            IconButton(
-              tooltip: 'Jump to page',
-              onPressed: _showJumpToPageDialog,
-              icon: const Icon(Icons.menu_book_rounded),
-            ),
-            Expanded(
-              child: InkWell(
-                onTap: _showJumpToPageDialog,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    _pageCount > 0
-                        ? 'Page $_currentPage/$_pageCount  •  Zoom ${(100 * _zoom).round()}%'
-                        : 'Loading document...',
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Next page',
-              onPressed: _nextPage,
-              icon: const Icon(Icons.chevron_right_rounded),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -346,14 +289,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 SfPdfViewer.file(
                   File(widget.pdfPath),
                   controller: _controller,
-                  canShowPaginationDialog: true,
-                  canShowScrollHead: true,
+                  canShowPaginationDialog: false,
+                  canShowScrollHead: false,
                   canShowPageLoadingIndicator: true,
                   canShowScrollStatus: false,
                   interactionMode: PdfInteractionMode.pan,
                   enableTextSelection: false,
+                  enableDoubleTapZooming: true,
                   maxZoomLevel: 5,
-                  pageSpacing: 6,
+                  pageSpacing: 2,
                   onTap: (PdfGestureDetails details) {
                     _toggleChrome();
                   },
@@ -393,12 +337,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     }
                   },
                   onZoomLevelChanged: (PdfZoomDetails details) {
-                    if (!mounted) {
-                      return;
-                    }
-                    setState(() {
-                      _zoom = details.newZoomLevel;
-                    });
+                    // Intentionally no setState to avoid heavy rebuilds while pinching.
                   },
                 ),
                 if (_isLoading)
@@ -418,16 +357,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ],
             )
           : const Center(child: Text('PDF file not found.')),
-      bottomNavigationBar: AnimatedSlide(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        offset: _chromeVisible ? Offset.zero : const Offset(0, 1),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 150),
-          opacity: _chromeVisible ? 1 : 0,
-          child: _buildStatusBar(isDark),
-        ),
-      ),
     );
   }
 }

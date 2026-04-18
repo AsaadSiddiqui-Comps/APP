@@ -31,11 +31,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     DocumentDraftStore.instance.initialize();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(const Duration(milliseconds: 250), () {
-        _consumeExternalPdfOpen();
-      });
-    });
   }
 
   @override
