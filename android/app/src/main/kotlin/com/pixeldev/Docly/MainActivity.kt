@@ -21,6 +21,7 @@ class MainActivity : FlutterActivity() {
     private val fileOpenChannel = "com.pixeldev.Docly/file_open"
     private val imageProcessor = ImageProcessor()
     private var pendingPdfPath: String? = null
+    private var nativeDrawingEngine: NativeDrawingEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,6 +36,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        nativeDrawingEngine = NativeDrawingEngine(flutterEngine)
+        nativeDrawingEngine?.attach()
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, storageChannel)
             .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
@@ -63,6 +67,12 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onDestroy() {
+        nativeDrawingEngine?.dispose()
+        nativeDrawingEngine = null
+        super.onDestroy()
     }
 
     private fun captureIncomingPdf(intent: Intent?) {

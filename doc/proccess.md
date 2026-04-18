@@ -362,6 +362,16 @@ we are makeing one page files in that files adn draft will be there which are ex
 and addon thing that the outside pdf like we click on it so it option that onpen in drive,other apps, so here you have to make that here our app should also visible and when click so the custom non app pdf should also open
 
 
+Some fix in previous changes
+remove that below bottom bar
+and add one thing in meu list search in pdf the serched text will eb higlihted
+
+and see when the externa pdf opens it shows first the app home screen then tit ope npdf viewr but i dont want like that when external pdf opens it wil directly open it on dpf viewer for soomth perfomace less wating time
+
+and laos the like pdf is open then i scroll it it feels too much laggy so we have to implmenti t more better way and natively to make it much faster as possible
+
+
+
 Now next we will be adding pdf Editor normal like edge browser do {its from adobe arcobat}
 
 when pdf viewer open on side a floating button will be there best and better when it will be clickied it will open one menue stylish and best hoving menu smooth transsitation effects
@@ -408,10 +418,3 @@ brush width lsider
 qapacity slider
 
 
-Some fix in previous changes
-remove that below bottom bar
-and add one thing in meu list search in pdf the serched text will eb higlihted
-
-and see when the externa pdf opens it shows first the app home screen then tit ope npdf viewr but i dont want like that when external pdf opens it wil directly open it on dpf viewer for soomth perfomace less wating time
-
-and laos the like pdf is open then i scroll it it feels too much laggy so we have to implmenti t more better way and natively to make it much faster as possible
