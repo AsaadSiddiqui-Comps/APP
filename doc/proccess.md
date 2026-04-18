@@ -360,3 +360,6 @@ mkaethe pdf viewer inbuilt app only so our exported pdf cna be open via app
 we are makeing one page files in that files adn draft will be there which are exported by app
 
 and addon thing that the outside pdf like we click on it so it option that onpen in drive,other apps, so here you have to make that here our app should also visible and when click so the custom non app pdf should also open
+
+
+Now next we will be adding pdf Editor normal like edge browser 

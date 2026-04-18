@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/app_permission_service.dart';
 import '../../../core/services/external_file_open_service.dart';
 import '../../camera/screens/camera_capture_screen.dart';
 import '../../documents/data/document_draft_store.dart';
@@ -30,7 +32,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     DocumentDraftStore.instance.initialize();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _consumeExternalPdfOpen();
+      Future<void>.delayed(const Duration(milliseconds: 250), () {
+        _consumeExternalPdfOpen();
+      });
     });
   }
 
@@ -54,10 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PdfViewerScreen(
-          pdfPath: path,
-          title: 'External PDF',
-        ),
+        builder: (_) => PdfViewerScreen(pdfPath: path, title: 'External PDF'),
       ),
     );
   }
@@ -604,6 +605,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openCamera() async {
+    final PermissionCheckResult result = await AppPermissionService.instance
+        .requestCameraPermission();
+    if (!result.allGranted) {
+      _showPermissionRequiredMessage(
+        result,
+        'Camera permission is needed to scan documents.',
+      );
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const CameraCaptureScreen()),
     );
@@ -614,11 +629,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openGalleryEditor() async {
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final PermissionCheckResult permissionResult = await AppPermissionService
+        .instance
+        .requestPhotosPermission();
+    if (!permissionResult.allGranted) {
+      _showPermissionRequiredMessage(
+        permissionResult,
+        'Photos permission is needed to import images.',
+      );
+      return;
+    }
+
+    final FilePickerResult? pickerResult = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: true,
     );
-    final List<XFile> images = (result?.files ?? <PlatformFile>[])
+    final List<XFile> images = (pickerResult?.files ?? <PlatformFile>[])
         .where((PlatformFile file) => file.path != null)
         .map((PlatformFile file) => XFile(file.path!))
         .toList(growable: false);
@@ -635,6 +661,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  void _showPermissionRequiredMessage(
+    PermissionCheckResult result,
+    String message,
+  ) {
+    if (!mounted) {
+      return;
+    }
+
+    final bool showSettings = result.permanentlyDenied.isNotEmpty;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: showSettings
+            ? SnackBarAction(
+                label: 'Settings',
+                onPressed: () {
+                  openAppSettings();
+                },
+              )
+            : null,
+      ),
+    );
   }
 
   Future<void> _openDraft(DocumentDraft draft) async {

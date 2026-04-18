@@ -33,7 +33,11 @@ lib/
 │   └── files/
 │       └── screens/
 │           ├── files_screen.dart       # Draft/Exported manager with sort, quick actions, and hold menu
-│           └── pdf_viewer_screen.dart  # In-app PDF viewer (open in app + share/open externally)
+│           └── pdf_viewer_screen.dart  # Fast in-app PDF viewer (file-based rendering + pinch zoom)
+├── features/
+│   └── documents/
+│       └── models/
+│           └── document_draft.dart     # Draft model with export cache metadata
 └── main.dart                    # App entry point
 
 ```
@@ -119,7 +123,18 @@ lib/
    - Rename
    - Delete
 - Added in-app PDF viewer screen for exported files.
+- Viewer now uses fast file-based PDF rendering for smoother open performance (especially external PDFs).
+- Added pinch zoom and explicit zoom controls in PDF viewer.
 - Added external PDF intent bridge so Docly can appear in Android open/share sheet for PDF files.
+
+### ✅ Smart Draft Share/Export Flow
+- Draft sharing behavior is now change-aware:
+   - Unchanged draft + valid previous exported PDF => direct share (no re-export).
+   - New/changed draft => export first, then share.
+- Single visible progress flow for share/export path (one progress bar UX).
+- Draft persistence includes export metadata used for reuse decisions:
+   - `exportedPdfPath`
+   - `exportedSignature`
 
 ### ✅ Light & Dark Mode Support
 - Complete theme system with Material 3 design
@@ -150,6 +165,7 @@ lib/
 ### PDF Processing
 - `pdf: ^3.10.8` - PDF document creation
 - `printing: ^5.11.3` - PDF preview and printing
+- `syncfusion_flutter_pdfviewer` - Fast in-app PDF viewing with pinch-to-zoom
 
 ### ML Kit Integration
 - `google_mlkit_commons: ^0.7.0` - Google ML Kit commons library

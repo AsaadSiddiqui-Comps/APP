@@ -8,6 +8,17 @@ Your PhotoToPDF Flutter application is now fully implemented with a beautiful, m
 
 ## ✅ What Has Been Accomplished
 
+### 0. Latest Update: PDF Performance + Share Workflow (Complete)
+```
+✅ Replaced heavy PDF preview path with file-based fast PDF viewer
+✅ Added pinch-to-zoom and zoom controls in in-app PDF viewer
+✅ External PDF open experience improved (lower perceived open delay)
+✅ Draft share now reuses previously exported PDF when draft is unchanged
+✅ Draft share now exports only when needed (new/changed draft)
+✅ Single progress flow for export-then-share behavior
+✅ Draft model extended with export cache metadata
+```
+
 ### 1. Project Structure (Complete)
 ```
 ✅ Organized into features (home, gallery, tools, etc.)
@@ -206,6 +217,7 @@ Comprehensive testing guide:
 - permission_handler: 11.4.4 # Permissions
 - pdf: 3.10.8               # PDF Creation
 - printing: 5.11.3          # PDF Preview
+- syncfusion_flutter_pdfviewer: 29.x # Fast file-based PDF viewer + pinch zoom
 - google_mlkit_commons: 0.7.0 # ML Kit
 - cupertino_icons: 1.0.8    # iOS Icons
 ```

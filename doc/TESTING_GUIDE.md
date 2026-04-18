@@ -24,6 +24,34 @@
 
 ## Running & Testing the App
 
+## New Regression Tests (PDF Viewer + Draft Share)
+
+### PDF Viewer Performance and Zoom
+- [ ] Open an external PDF from Android share/open-with sheet.
+  - Expected: viewer opens smoothly without long freeze.
+- [ ] Open an exported PDF from Files -> Exported.
+  - Expected: pages render quickly and scroll smoothly.
+- [ ] Pinch with two fingers to zoom in/out.
+  - Expected: smooth zoom interaction.
+- [ ] Tap zoom in/out toolbar actions.
+  - Expected: zoom level changes immediately and remains stable.
+
+### Draft Share Smart Behavior
+- [ ] Create/update a draft and tap Share.
+  - Expected: one visible progress flow appears, then share sheet opens.
+- [ ] Share same draft again without any changes.
+  - Expected: skips export step and opens share faster using existing PDF.
+- [ ] Change draft content (crop/filter/rotate/page order) and tap Share.
+  - Expected: re-exports new PDF, then opens share sheet.
+- [ ] Rename draft and tap Share.
+  - Expected: treated as changed signature and exported PDF metadata refreshes.
+
+### Failure/Edge Cases
+- [ ] Delete previously exported PDF file manually, then share unchanged draft.
+  - Expected: app detects missing cached export and re-exports automatically.
+- [ ] Corrupt/missing page source in a draft.
+  - Expected: app shows failure feedback and does not crash.
+
 ### Step 1: Initial Setup
 ```bash
 cd <project-root>

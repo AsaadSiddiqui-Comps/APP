@@ -8,20 +8,20 @@ Docly/
 ├── ios/                              # iOS platform code
 ├── lib/
 │   ├── config/
-│   │   └── theme.dart               # Theme system (150+ lines)
+│   │   └── theme.dart               # Theme system
 │   │       ├── Light Theme Definition
 │   │       ├── Dark Theme Definition
 │   │       └── Material 3 Components
 │   │
 │   ├── core/
 │   │   ├── constants/
-│   │   │   ├── app_colors.dart      # Color palette (50+ lines)
+│   │   │   ├── app_colors.dart      # Color palette
 │   │   │   │   ├── Primary Colors
 │   │   │   │   ├── Light/Dark Theme Colors
 │   │   │   │   ├── Gradient Definitions
 │   │   │   │   └── Status Colors
 │   │   │   │
-│   │   │   ├── app_constants.dart   # App constants (50+ lines)
+│   │   │   ├── app_constants.dart   # App constants
 │   │   │   │   ├── String Constants
 │   │   │   │   ├── Spacing Values
 │   │   │   │   ├── Border Radius
@@ -29,12 +29,14 @@ Docly/
 │   │   │   │
 │   │   │   └── constants.dart       # Exports file
 │   │   │
+│   │   ├── services/
+│   │   │   └── external_file_open_service.dart # External PDF open bridge
 │   │   └── utilities/               # Utility functions (future)
 │   │
 │   ├── features/
 │   │   ├── home/
 │   │   │   ├── screens/
-│   │   │   │   └── home_screen.dart (350+ lines)
+│   │   │   │   └── home_screen.dart
 │   │   │   │       ├── Hero Section
 │   │   │   │       ├── Action Cards
 │   │   │   │       ├── Quick Tools
@@ -43,25 +45,40 @@ Docly/
 │   │   │   │       └── Event Handlers
 │   │   │   │
 │   │   │   └── widgets/
-│   │   │       ├── action_card.dart (80+ lines)
+│   │   │       ├── action_card.dart
 │   │   │       │   ├── Gradient Support
 │   │   │       │   ├── Icon Display
 │   │   │       │   └── Tap Animation
 │   │   │       │
-│   │   │       ├── recent_document_card.dart (90+ lines)
+│   │   │       ├── recent_document_card.dart
 │   │   │       │   ├── Document Info
 │   │   │       │   ├── Date/Pages Display
 │   │   │       │   └── Delete Function
 │   │   │       │
-│   │   │       ├── feature_tile.dart (50+ lines)
+│   │   │       ├── feature_tile.dart
 │   │   │       │   ├── Icon Container
 │   │   │       │   └── Label Text
 │   │   │       │
 │   │   │       └── widgets.dart     # Exports file
 │   │   │
-│   │   ├── tools/                   # PDF tools (phase 2)
-│   │   ├── gallery/                 # Gallery management (phase 2)
-│   │   └── pdf_editor/              # PDF editing (phase 3)
+│   │   ├── editor/
+│   │   │   └── screens/
+│   │   │       └── editor_coming_soon_screen.dart # Edit, crop, rotate, filter flow
+│   │   ├── export/
+│   │   │   ├── screens/
+│   │   │   │   └── document_export_screen.dart    # Export options and progress
+│   │   │   └── services/
+│   │   │       └── document_export_service.dart   # Background PDF/images export
+│   │   ├── documents/
+│   │   │   ├── data/
+│   │   │   │   ├── document_draft_store.dart      # Draft index persistence
+│   │   │   │   └── document_storage_service.dart   # Draft/export storage ops
+│   │   │   └── models/
+│   │   │       └── document_draft.dart            # Draft model + export cache metadata
+│   │   └── files/
+│   │       └── screens/
+│   │           ├── files_screen.dart              # Draft/Exported manager + smart share flow
+│   │           └── pdf_viewer_screen.dart         # Fast PDF viewer + pinch zoom
 │   │
 │   └── main.dart                    # Entry point (35 lines)
 │       ├── MyApp (StatefulWidget)
@@ -218,7 +235,44 @@ HomeScreen (StatefulWidget)
           └── _handleSettings()
 ```
 
-### 6. features/home/widgets/action_card.dart
+### 6. features/files/screens/files_screen.dart
+**Responsibility:** Draft and exported file management
+
+Key responsibilities:
+- Draft/Exported bucket switching and sorting
+- Quick actions: edit, export, share, rename, delete
+- Smart draft share path:
+  - Reuse previous exported PDF when draft signature is unchanged
+  - Export first and then share when draft changed or no cached export exists
+- Single progress overlay for export-then-share flow
+
+### 7. features/files/screens/pdf_viewer_screen.dart
+**Responsibility:** In-app PDF viewing and sharing
+
+Key responsibilities:
+- Fast file-based PDF rendering
+- Pinch-to-zoom support
+- Toolbar zoom in/zoom out actions
+- Share and open externally actions
+
+### 8. features/documents/models/document_draft.dart
+**Responsibility:** Draft document contract and persistence model
+
+Key fields:
+- `id`, `name`, `pagePaths`, `filterBasePaths`, `updatedAt`
+- `exportedPdfPath` for last reusable exported PDF
+- `exportedSignature` for change detection against current draft state
+
+### 9. features/export/services/document_export_service.dart
+**Responsibility:** Async export pipeline
+
+Key responsibilities:
+- Export pages to PDF with progress callbacks
+- Export pages as image sequence
+- Run heavy generation work off the UI path
+- Provide a stable exported output path
+
+### 10. features/home/widgets/action_card.dart
 **Lines: ~80**
 **Responsibility:** Gradient action buttons
 
@@ -242,7 +296,7 @@ ActionCard (StatelessWidget)
               └── Text (title + subtitle)
 ```
 
-### 7. features/home/widgets/recent_document_card.dart
+### 11. features/home/widgets/recent_document_card.dart
 **Lines: ~90**
 **Responsibility:** Document list item display
 
@@ -265,7 +319,7 @@ RecentDocumentCard (StatelessWidget)
               └── Delete Button
 ```
 
-### 8. features/home/widgets/feature_tile.dart
+### 12. features/home/widgets/feature_tile.dart
 **Lines: ~50**
 **Responsibility:** Square tool buttons
 
@@ -292,14 +346,19 @@ main.dart
 MyApp (theme setup)
   ↓
 HomeScreen
-  ├── Uses: AppTheme (from config)
-  ├── Uses: AppColors (from constants)
-  ├── Uses: AppConstants (from constants)
-  └── Renders:
-      ├── ActionCard (widget)
-      ├── FeatureTile (widget)
-      ├── RecentDocumentCard (widget)
-      └── Event handlers (future implementation)
+  ├── Opens FilesScreen (Recent arrow)
+  ├── Consumes external PDF intents via ExternalFileOpenService
+  └── Opens PdfViewerScreen for external/opened PDFs
+
+FilesScreen
+  ├── Loads drafts from DocumentDraftStore
+  ├── Resolves pages via DocumentStorageService
+  ├── Opens EditorComingSoonScreen for editing/export
+  └── Share Draft:
+      ├── Build draft signature
+      ├── Reuse cached PDF if unchanged
+      ├── Else call DocumentExportService.exportPdf
+      └── Share with one progress flow
 ```
 
 ## Dependency Injection Pattern
@@ -334,19 +393,24 @@ lib/features/
     └── widgets/
 ```
 
-## Lines of Code Summary
+## Current Focus Modules
 
-| Component | Lines | Status |
+| Module | Purpose | Status |
 |-----------|-------|--------|
-| main.dart | ~35 | ✅ Done |
-| theme.dart | ~150 | ✅ Done |
-| app_colors.dart | ~50 | ✅ Done |
-| app_constants.dart | ~50 | ✅ Done |
-| home_screen.dart | ~350 | ✅ Done |
-| action_card.dart | ~80 | ✅ Done |
-| recent_document_card.dart | ~90 | ✅ Done |
-| feature_tile.dart | ~50 | ✅ Done |
-| **Total** | **~855** | **✅ Complete** |
+| Home + Recent | App landing and recent drafts | ✅ Active |
+| Editor | Crop/rotate/filter and draft editing | ✅ Active |
+| Export | PDF/image export with progress | ✅ Active |
+| Files | Draft/Exported browsing and actions | ✅ Active |
+| PDF Viewer | Fast in-app viewer with zoom | ✅ Active |
+| Documents Store | Draft index + storage metadata | ✅ Active |
+
+## Latest Behavioral Notes (April 2026)
+
+- In-app PDF viewing now uses fast file-based rendering for better responsiveness.
+- Pinch zoom is supported in viewer, plus explicit zoom controls.
+- Draft share now avoids unnecessary export by reusing previous exported PDF if unchanged.
+- If draft changed or cached PDF is missing, export runs first and then share opens.
+- Export/share user feedback is presented through a single progress flow.
 
 ## Architecture Benefits
 

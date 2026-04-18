@@ -26,6 +26,23 @@ class AppPermissionService {
     return <Permission>[Permission.camera];
   }
 
+  Future<PermissionCheckResult> requestCameraPermission() {
+    return _requestPermissions(<Permission>[Permission.camera]);
+  }
+
+  Future<PermissionCheckResult> requestPhotosPermission() {
+    if (Platform.isAndroid || Platform.isIOS) {
+      return _requestPermissions(<Permission>[Permission.photos]);
+    }
+    return Future<PermissionCheckResult>.value(
+      PermissionCheckResult(
+        allGranted: true,
+        denied: <Permission>[],
+        permanentlyDenied: <Permission>[],
+      ),
+    );
+  }
+
   List<Permission> optionalStoragePermissions() {
     if (Platform.isAndroid) {
       return <Permission>[Permission.manageExternalStorage];
@@ -46,6 +63,12 @@ class AppPermissionService {
 
   Future<PermissionCheckResult> requestRequiredPermissions() async {
     final List<Permission> permissions = requiredPermissions();
+    return _requestPermissions(permissions);
+  }
+
+  Future<PermissionCheckResult> _requestPermissions(
+    List<Permission> permissions,
+  ) async {
     final Map<Permission, PermissionStatus> statuses = await permissions
         .request();
 

@@ -22,6 +22,9 @@ Welcome to the PhotoToPDF App Documentation! Start here to find what you need.
 ### **Need Files & PDF Flow Details?**
 → [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Includes Files page, Draft/Exported switching, and in-app PDF viewer architecture
 
+### **Need Latest Performance Updates?**
+→ [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Includes fast PDF viewer, pinch zoom, and smart draft-share cache behavior
+
 ### **Want to Verify Everything?**
 → [FILE_CHECKLIST.md](FILE_CHECKLIST.md) - Complete file and feature checklist
 
@@ -42,6 +45,18 @@ Welcome to the PhotoToPDF App Documentation! Start here to find what you need.
 | **FILE_CHECKLIST.md** | File verification and feature checklist |
 | **IMPLEMENTATION_SUMMARY.md** | Overview of what's been implemented |
 | **PROJECT_STRUCTURE.md** | Includes Files page flow and external PDF open support |
+
+---
+
+## Latest Updates (April 2026)
+
+- PDF viewer moved to a file-based, fast rendering path for smoother external PDF open.
+- Pinch-to-zoom is supported in the in-app PDF viewer, with explicit zoom in/out controls.
+- Draft share flow now uses a smart cache:
+	- If draft has no changes and a valid previous PDF export exists, share uses that file directly.
+	- If draft has changed (or no prior export exists), app exports first, then opens share.
+- Draft share/export now uses one visible progress flow (single progress bar experience).
+- Draft model now stores export reuse metadata for consistency across sessions.
 
 ---
 

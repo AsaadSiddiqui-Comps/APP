@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'config/theme.dart';
-import 'features/permissions/screens/permission_gate_screen.dart';
+import 'features/home/screens/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,7 +17,7 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
-      home: const PermissionGateScreen(),
+      home: const HomeScreen(),
     );
   }
 }
