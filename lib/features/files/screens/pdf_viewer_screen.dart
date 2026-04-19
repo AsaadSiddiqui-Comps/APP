@@ -7,6 +7,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../documents/data/document_storage_service.dart';
+import 'pdf_editor_screen.dart';
 import '../models/pdf_edit_models.dart';
 import '../widgets/editor_tool_panel.dart';
 import '../widgets/native_accelerated_drawing_canvas.dart';
@@ -73,9 +74,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void initState() {
     super.initState();
     _controller = PdfViewerController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadOverlayData();
-    });
   }
 
   @override
@@ -882,22 +880,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return AppBar(
       title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       actions: [
-        TextButton(
-          onPressed: (_hasUnsavedEdits || _activeTool != EditorTool.none)
-              ? _showDoneMenu
-              : null,
-          child: const Text('Done'),
-        ),
-        IconButton(
-          tooltip: 'Undo',
-          onPressed: _undoStack.isEmpty ? null : _undo,
-          icon: const Icon(Icons.undo_rounded),
-        ),
-        IconButton(
-          tooltip: 'Redo',
-          onPressed: _redoStack.isEmpty ? null : _redo,
-          icon: const Icon(Icons.redo_rounded),
-        ),
         IconButton(
           tooltip: 'Zoom out',
           onPressed: _zoomOut,
@@ -908,24 +890,26 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           onPressed: _zoomIn,
           icon: const Icon(Icons.zoom_in_rounded),
         ),
+        IconButton(
+          tooltip: 'Open editor',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PdfEditorScreen(
+                  pdfPath: widget.pdfPath,
+                  title: widget.title,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.edit_rounded),
+        ),
         PopupMenuButton<String>(
           onSelected: (String value) {
             if (value == 'search_pdf') {
               _openSearchMode();
             } else if (value == 'jump_page') {
               _showJumpToPageDialog();
-            } else if (value == 'tool_highlighter') {
-              _setActiveTool(EditorTool.highlighter);
-            } else if (value == 'tool_draw') {
-              _drawMode = DrawMode.pen;
-              _setActiveTool(EditorTool.draw);
-            } else if (value == 'tool_eraser') {
-              _drawMode = DrawMode.eraser;
-              _setActiveTool(EditorTool.draw);
-            } else if (value == 'tool_text') {
-              _setActiveTool(EditorTool.text);
-            } else if (value == 'tool_none') {
-              _setActiveTool(EditorTool.none);
             } else if (value == 'share') {
               _share();
             } else if (value == 'open_external') {
@@ -933,36 +917,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             }
           },
           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(value: 'search_pdf', child: Text('Search in PDF')),
+            const PopupMenuItem<String>(value: 'jump_page', child: Text('Jump to page')),
             const PopupMenuItem<String>(
-              value: 'tool_highlighter',
-              child: Text('Highlighter'),
+              value: 'share',
+              child: Text('Share'),
             ),
-            const PopupMenuItem<String>(
-              value: 'tool_draw',
-              child: Text('Draw'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'tool_eraser',
-              child: Text('Eraser'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'tool_text',
-              child: Text('Add Text'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'tool_none',
-              child: Text('Exit Editor'),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem<String>(
-              value: 'search_pdf',
-              child: Text('Search in PDF'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'jump_page',
-              child: Text('Jump to page'),
-            ),
-            const PopupMenuItem<String>(value: 'share', child: Text('Share')),
             const PopupMenuItem<String>(
               value: 'open_external',
               child: Text('Open in default browser/apps'),
@@ -986,10 +946,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       body: File(widget.pdfPath).existsSync()
           ? LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
-                _overlaySize = Size(
-                  constraints.maxWidth,
-                  constraints.maxHeight,
-                );
                 return Stack(
                   children: [
                     SfPdfViewer.file(
@@ -1020,9 +976,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           _pageCount = details.document.pages.count;
                           _currentPage = _controller.pageNumber;
                         });
-                        if (_activeTool == EditorTool.highlighter) {
-                          _applyHighlighterSettings();
-                        }
                       },
                       onDocumentLoadFailed:
                           (PdfDocumentLoadFailedDetails details) {
@@ -1053,51 +1006,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                       onZoomLevelChanged: (PdfZoomDetails details) {
                         // Intentionally no setState to avoid heavy rebuilds while pinching.
                       },
-                      onAnnotationAdded: (Annotation annotation) {
-                        _annotationDirty = true;
-                      },
-                      onAnnotationEdited: (Annotation annotation) {
-                        _annotationDirty = true;
-                      },
-                      onAnnotationRemoved: (Annotation annotation) {
-                        _annotationDirty = true;
-                      },
-                    ),
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring:
-                            _activeTool == EditorTool.none ||
-                            _activeTool == EditorTool.highlighter,
-                        child: RepaintBoundary(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onPanStart: _activeTool == EditorTool.draw
-                                ? _onDrawStart
-                                : null,
-                            onPanUpdate: _activeTool == EditorTool.draw
-                                ? _onDrawUpdate
-                                : null,
-                            onPanEnd: _activeTool == EditorTool.draw
-                                ? _onDrawEnd
-                                : null,
-                            onTapDown: _activeTool == EditorTool.text
-                                ? _onTextTap
-                                : null,
-                            child: NativeAcceleratedDrawingCanvas(
-                              strokes: _strokes,
-                              textItems: _textOverlays,
-                              activeStroke: _activeStrokePoints,
-                              activeStrokeColor: _drawColor,
-                              activeStrokeWidth: _drawWidth,
-                              activeStrokeOpacity: _drawOpacity,
-                              onDrawComplete: () {
-                                _overlayTick.value += 1;
-                              },
-                              repaint: _overlayTick,
-                            ),
-                          ),
-                        ),
-                      ),
                     ),
                     if (_isLoading)
                       const Positioned(
@@ -1120,242 +1028,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           child: Center(child: CircularProgressIndicator()),
                         ),
                       ),
-                    if (_chromeVisible) ...[
-                      Positioned(
-                        right: 14,
-                        bottom: _activeTool == EditorTool.none ? 18 : 210,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (_toolMenuOpen) ...[
-                              _buildEditorFabItem(
-                                icon: Icons.highlight_alt_rounded,
-                                title: 'Highlighter',
-                                subtitle: 'Highlight key text quickly',
-                                onTap: () =>
-                                    _setActiveTool(EditorTool.highlighter),
-                              ),
-                              const SizedBox(height: 8),
-                              _buildEditorFabItem(
-                                icon: Icons.draw_rounded,
-                                title: 'Draw',
-                                subtitle: 'Sketch freely on document',
-                                onTap: () {
-                                  _drawMode = DrawMode.pen;
-                                  _setActiveTool(EditorTool.draw);
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              _buildEditorFabItem(
-                                icon: Icons.auto_fix_off_rounded,
-                                title: 'Eraser',
-                                subtitle: 'Erase part of strokes',
-                                onTap: () {
-                                  _drawMode = DrawMode.eraser;
-                                  _setActiveTool(EditorTool.draw);
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              _buildEditorFabItem(
-                                icon: Icons.text_fields_rounded,
-                                title: 'Add Text',
-                                subtitle: 'Place styled text notes',
-                                onTap: () => _setActiveTool(EditorTool.text),
-                              ),
-                              const SizedBox(height: 10),
-                            ],
-                            FloatingActionButton.small(
-                              heroTag: 'pdf_editor_fab',
-                              onPressed: () {
-                                setState(() {
-                                  _toolMenuOpen = !_toolMenuOpen;
-                                  _searchMode = false;
-                                  _chromeVisible = true;
-                                });
-                              },
-                              child: AnimatedRotation(
-                                duration: const Duration(milliseconds: 220),
-                                turns: _toolMenuOpen ? 0.125 : 0,
-                                child: Icon(
-                                  _toolMenuOpen
-                                      ? Icons.close_rounded
-                                      : Icons.edit_note_rounded,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ],
                 );
               },
             )
           : const Center(child: Text('PDF file not found.')),
-      bottomNavigationBar: _buildActiveToolPanel(),
-    );
-  }
-
-  Widget _buildEditorFabItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.76),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 20, color: Colors.white),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget? _buildActiveToolPanel() {
-    if (_activeTool == EditorTool.none || !_chromeVisible) {
-      return null;
-    }
-
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color panel = isDark
-        ? AppColors.darkSurfaceContainer
-        : AppColors.lightSurfaceContainer;
-
-    return SafeArea(
-      top: false,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        decoration: BoxDecoration(
-          color: panel.withValues(alpha: 0.97),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x33000000),
-              blurRadius: 10,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: _activeTool == EditorTool.highlighter
-            ? EditorToolPanel.buildHighlighterPanel(
-                highlightMode: _highlightMode,
-                highlightColor: _highlightColor,
-                highlightOpacity: _highlightOpacity,
-                onColorChanged: (Color c) {
-                  setState(() {
-                    _highlightColor = c;
-                    _applyHighlighterSettings();
-                  });
-                },
-                onOpacityChanged: (double o) {
-                  setState(() {
-                    _highlightOpacity = o;
-                    _applyHighlighterSettings();
-                  });
-                },
-                onModeChanged: (HighlightMode m) {
-                  setState(() {
-                    _highlightMode = m;
-                    _applyHighlighterSettings();
-                  });
-                },
-              )
-            : _activeTool == EditorTool.draw
-            ? EditorToolPanel.buildDrawPanel(
-                drawMode: _drawMode,
-                drawColor: _drawColor,
-                drawWidth: _drawWidth,
-                drawOpacity: _drawOpacity,
-                eraserSize: _eraserSize,
-                onModeChanged: (DrawMode m) {
-                  setState(() {
-                    _drawMode = m;
-                  });
-                },
-                onColorChanged: (Color c) {
-                  setState(() {
-                    _drawColor = c;
-                  });
-                },
-                onWidthChanged: (double w) {
-                  setState(() {
-                    _drawWidth = w;
-                  });
-                },
-                onOpacityChanged: (double o) {
-                  setState(() {
-                    _drawOpacity = o;
-                  });
-                },
-                onEraserSizeChanged: (double s) {
-                  setState(() {
-                    _eraserSize = s;
-                  });
-                },
-              )
-            : EditorToolPanel.buildTextPanel(
-                textColor: _textColor,
-                textBackground: _textBackground,
-                textFont: _textFont,
-                textSize: _textSize,
-                textAlign: _textAlign,
-                onColorChanged: (Color c) {
-                  setState(() {
-                    _textColor = c;
-                  });
-                },
-                onBackgroundChanged: (Color c) {
-                  setState(() {
-                    _textBackground = c;
-                  });
-                },
-                onFontChanged: (String f) {
-                  setState(() {
-                    _textFont = f;
-                  });
-                },
-                onSizeChanged: (double s) {
-                  setState(() {
-                    _textSize = s;
-                  });
-                },
-                onAlignChanged: (TextAlign a) {
-                  setState(() {
-                    _textAlign = a;
-                  });
-                },
-              ),
-      ),
     );
   }
 }
