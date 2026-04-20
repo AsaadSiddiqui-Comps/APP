@@ -1,9 +1,11 @@
 ﻿import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart' as sfpdf;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -24,6 +26,7 @@ class _EditableTextItem {
     required this.fontSize,
     required this.fontFamily,
     required this.textAlign,
+    this.height = 48,
   });
 
   final String id;
@@ -35,6 +38,7 @@ class _EditableTextItem {
   double fontSize;
   String fontFamily;
   TextAlign textAlign;
+  double height;
 }
 
 class _EditableImageItem {
@@ -75,6 +79,7 @@ class PdfEditorScreen extends StatefulWidget {
 
 class _PdfEditorScreenState extends State<PdfEditorScreen> {
   late final PdfViewerController _controller;
+  final ValueNotifier<int> _overlayTick = ValueNotifier<int>(0);
 
   int _currentPage = 1;
   int _pageCount = 0;
@@ -109,6 +114,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   bool _overlayDirty = false;
   Size _canvasSize = const Size(1, 1);
+  bool _allowProgrammaticPageJump = false;
 
   bool get _hasUnsavedEdits => _overlayDirty;
 
@@ -121,6 +127,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _overlayTick.dispose();
+    super.dispose();
+  }
+
   _PageOverlayData get _currentLayer {
     return _overlaysByPage.putIfAbsent(_currentPage, _PageOverlayData.new);
   }
@@ -131,6 +143,34 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         _activeTool == _EditorCanvasTool.text ||
         _activeTool == _EditorCanvasTool.image;
   }
+
+  void _notifyOverlay() {
+    _overlayTick.value += 1;
+  }
+
+  void _markOverlayDirty() {
+    if (_overlayDirty) {
+      _notifyOverlay();
+      return;
+    }
+    setState(() {
+      _overlayDirty = true;
+    });
+    _notifyOverlay();
+  }
+
+  void _appendStrokePoint(Offset point) {
+    if (_activeStrokePoints.isEmpty) {
+      _activeStrokePoints.add(point);
+      return;
+    }
+    final Offset last = _activeStrokePoints.last;
+    if ((point - last).distance > 1.4) {
+      _activeStrokePoints.add(point);
+    }
+  }
+
+  int _channel255(double value) => (value * 255).round().clamp(0, 255);
 
   bool get _absorbPdfGestures {
     if (_isViewMode) {
@@ -346,6 +386,119 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     await sidecar.writeAsString(jsonEncode(payload));
   }
 
+  Future<void> _deleteOverlayData(String targetPdfPath) async {
+    final File sidecar = File(_sidecarPathFor(targetPdfPath));
+    if (await sidecar.exists()) {
+      await sidecar.delete();
+    }
+  }
+
+  Future<List<int>> _renderOverlayIntoPdf(List<int> sourceBytes) async {
+    if (_overlaysByPage.isEmpty || _canvasSize.width <= 0 || _canvasSize.height <= 0) {
+      return sourceBytes;
+    }
+
+    final sfpdf.PdfDocument document = sfpdf.PdfDocument(inputBytes: sourceBytes);
+
+    try {
+      for (final MapEntry<int, _PageOverlayData> entry in _overlaysByPage.entries) {
+        final int pageNo = entry.key;
+        if (pageNo <= 0 || pageNo > document.pages.count) {
+          continue;
+        }
+
+        final _PageOverlayData layer = entry.value;
+        if (layer.isEmpty) {
+          continue;
+        }
+
+        final sfpdf.PdfPage page = document.pages[pageNo - 1];
+        final sfpdf.PdfGraphics g = page.graphics;
+        final double sx = page.size.width / _canvasSize.width;
+        final double sy = page.size.height / _canvasSize.height;
+
+        for (final StrokePath stroke in layer.strokes) {
+          if (stroke.points.length < 2) {
+            continue;
+          }
+          final sfpdf.PdfPen pen = sfpdf.PdfPen(
+            sfpdf.PdfColor(
+              _channel255(stroke.color.r),
+              _channel255(stroke.color.g),
+              _channel255(stroke.color.b),
+            ),
+            width: stroke.width * sx,
+          );
+          for (int i = 1; i < stroke.points.length; i += 1) {
+            final Offset a = stroke.points[i - 1];
+            final Offset b = stroke.points[i];
+            g.drawLine(
+              pen,
+              Offset(a.dx * sx, a.dy * sy),
+              Offset(b.dx * sx, b.dy * sy),
+            );
+          }
+        }
+
+        for (final _EditableTextItem text in layer.texts) {
+          final sfpdf.PdfFont font = sfpdf.PdfStandardFont(
+            sfpdf.PdfFontFamily.helvetica,
+            text.fontSize * sx,
+          );
+          final Rect rect = Rect.fromLTWH(
+            text.position.dx * sx,
+            text.position.dy * sy,
+            text.width * sx,
+            text.height * sy,
+          );
+
+          if (text.backgroundColor.a > 0) {
+            g.drawRectangle(
+              brush: sfpdf.PdfSolidBrush(
+                sfpdf.PdfColor(
+                  _channel255(text.backgroundColor.r),
+                  _channel255(text.backgroundColor.g),
+                  _channel255(text.backgroundColor.b),
+                ),
+              ),
+              bounds: rect,
+            );
+          }
+
+          g.drawString(
+            text.text,
+            font,
+            brush: sfpdf.PdfSolidBrush(
+              sfpdf.PdfColor(
+                _channel255(text.textColor.r),
+                _channel255(text.textColor.g),
+                _channel255(text.textColor.b),
+              ),
+            ),
+            bounds: rect,
+          );
+        }
+
+        for (final _EditableImageItem image in layer.images) {
+          final sfpdf.PdfBitmap bitmap = sfpdf.PdfBitmap(image.bytes);
+          g.drawImage(
+            bitmap,
+            Rect.fromLTWH(
+              image.position.dx * sx,
+              image.position.dy * sy,
+              image.size.width * sx,
+              image.size.height * sy,
+            ),
+          );
+        }
+      }
+
+      return await document.save();
+    } finally {
+      document.dispose();
+    }
+  }
+
   Future<void> _saveEdits({required bool saveAsCopy}) async {
     if (_isSaving) {
       return;
@@ -357,13 +510,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
     try {
       final List<int> savedBytes = await _controller.saveDocument();
+      final List<int> mergedBytes = await _renderOverlayIntoPdf(savedBytes);
       if (saveAsCopy) {
         final Directory exportDir = await DocumentStorageService.instance.getExportedDir();
         final String now = DateTime.now().millisecondsSinceEpoch.toString();
         final String fileName = _buildCopyFileName(now);
         final String tempPath = '${exportDir.path}${Platform.pathSeparator}$fileName';
 
-        await File(tempPath).writeAsBytes(savedBytes, flush: true);
+        await File(tempPath).writeAsBytes(mergedBytes, flush: true);
         final String finalPath = await DocumentStorageService.instance.saveFileToPublicDownloads(
           sourcePath: tempPath,
           displayName: fileName,
@@ -376,7 +530,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         }
 
         await DocumentStorageService.instance.scanFile(finalPath);
-        await _persistOverlayData(finalPath);
+        await _deleteOverlayData(finalPath);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -384,9 +538,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           );
         }
       } else {
-        await File(widget.pdfPath).writeAsBytes(savedBytes, flush: true);
+        await File(widget.pdfPath).writeAsBytes(mergedBytes, flush: true);
         await DocumentStorageService.instance.scanFile(widget.pdfPath);
-        await _persistOverlayData(widget.pdfPath);
+        await _deleteOverlayData(widget.pdfPath);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -397,9 +551,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
       if (mounted) {
         setState(() {
+          _overlaysByPage.clear();
+          _selectedTextId = null;
+          _selectedImageId = null;
+          _activeStrokePoints.clear();
           _overlayDirty = false;
         });
       }
+      _notifyOverlay();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -458,14 +617,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       return;
     }
 
-    if (_drawMode == DrawMode.eraser) {
+    if (_activeTool == _EditorCanvasTool.draw && _drawMode == DrawMode.eraser) {
       _eraseAt(details.localPosition);
       return;
     }
     _activeStrokePoints
       ..clear()
       ..add(details.localPosition);
-    setState(() {});
+    _notifyOverlay();
   }
 
   void _onDrawUpdate(DragUpdateDetails details) {
@@ -482,8 +641,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       return;
     }
 
-    _activeStrokePoints.add(details.localPosition);
-    setState(() {});
+    _appendStrokePoint(details.localPosition);
+    _notifyOverlay();
   }
 
   void _onDrawEnd(DragEndDetails details) {
@@ -496,13 +655,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
 
     if (_activeTool == _EditorCanvasTool.draw && _drawMode == DrawMode.eraser) {
-      setState(() {});
+      _notifyOverlay();
       return;
     }
 
     if (_activeStrokePoints.length < 2) {
       _activeStrokePoints.clear();
-      setState(() {});
+      _notifyOverlay();
       return;
     }
 
@@ -517,8 +676,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       ),
     );
     _activeStrokePoints.clear();
-    _overlayDirty = true;
-    setState(() {});
+    _markOverlayDirty();
   }
 
   void _eraseAt(Offset point) {
@@ -558,8 +716,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _currentLayer.strokes
       ..clear()
       ..addAll(rebuilt);
-    _overlayDirty = true;
-    setState(() {});
+    _markOverlayDirty();
   }
 
   Future<void> _onCanvasTap(TapDownDetails details) async {
@@ -572,6 +729,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       return;
     }
 
+    if (_activeTool == _EditorCanvasTool.image) {
+      return;
+    }
+
     setState(() {
       _selectedTextId = null;
       _selectedImageId = null;
@@ -579,24 +740,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   Future<void> _addTextAt(Offset position) async {
-    final TextEditingController controller = TextEditingController();
-    final String? text = await _showTextEditorSheet(controller, title: 'Add text');
-    controller.dispose();
-
-    if (text == null || text.trim().isEmpty || !mounted) {
-      return;
-    }
-
     final _EditableTextItem item = _EditableTextItem(
       id: _newId(),
-      text: text.trim(),
+      text: 'New text',
       position: position,
-      width: 160,
+      width: 180,
       textColor: _textColor,
       backgroundColor: _textBackground,
       fontSize: _textSize,
       fontFamily: _textFont,
       textAlign: _textAlign,
+      height: 56,
     );
 
     setState(() {
@@ -604,6 +758,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       _selectedTextId = item.id;
       _overlayDirty = true;
     });
+    _notifyOverlay();
   }
 
   Future<String?> _showTextEditorSheet(
@@ -679,6 +834,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       return;
     }
 
+    bytes = await _optimizeImage(bytes);
+
     final Size size = _canvasSize;
     final Size box = Size((size.width * 0.34).clamp(120, 220), (size.width * 0.34).clamp(120, 220));
     final Offset pos = Offset(
@@ -699,6 +856,86 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       _activeTool = _EditorCanvasTool.image;
       _overlayDirty = true;
     });
+    _notifyOverlay();
+  }
+
+  Future<Uint8List> _optimizeImage(Uint8List raw) async {
+    try {
+      final ui.Codec codec = await ui.instantiateImageCodec(raw, targetWidth: 1280);
+      final ui.FrameInfo frame = await codec.getNextFrame();
+      final ByteData? data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) {
+        return raw;
+      }
+      return data.buffer.asUint8List();
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  Future<void> _insertBlankPage({required int afterPage}) async {
+    if (_isSaving) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final List<int> input = await File(widget.pdfPath).readAsBytes();
+      final sfpdf.PdfDocument document = sfpdf.PdfDocument(inputBytes: input);
+      final int insertIndex = afterPage.clamp(0, document.pages.count);
+      document.pages.insert(insertIndex);
+
+      final List<int> output = await document.save();
+      document.dispose();
+
+      await File(widget.pdfPath).writeAsBytes(output, flush: true);
+      await DocumentStorageService.instance.scanFile(widget.pdfPath);
+
+      if (_overlaysByPage.isNotEmpty) {
+        final Map<int, _PageOverlayData> shifted = <int, _PageOverlayData>{};
+        for (final MapEntry<int, _PageOverlayData> e in _overlaysByPage.entries) {
+          shifted[e.key > afterPage ? e.key + 1 : e.key] = e.value;
+        }
+        _overlaysByPage
+          ..clear()
+          ..addAll(shifted);
+      }
+
+      await _persistOverlayData(widget.pdfPath);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Page inserted after page $afterPage.')),
+      );
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => PdfEditorScreen(
+            pdfPath: widget.pdfPath,
+            title: widget.title,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to insert page in this PDF.')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _activeTool = _EditorCanvasTool.none;
+        });
+      }
+    }
   }
 
   Future<void> _showAddPageMenu() async {
@@ -728,13 +965,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                     final String label = end ? 'At end +' : 'After ${index + 1} +';
                     return ActionChip(
                       label: Text(label),
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.of(context).pop();
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Add page structure is ready in UI. PDF page insertion backend will be enabled in next step.'),
-                          ),
-                        );
+                        final int afterPage = end ? _pageCount : index + 1;
+                        await _insertBlankPage(afterPage: afterPage);
                       },
                     );
                   }),
@@ -774,11 +1008,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                 onTap: () => Navigator.of(context).pop('copy'),
               ),
               ListTile(
-                leading: const Icon(Icons.save_rounded),
-                title: const Text('Save as Original'),
-                onTap: () => Navigator.of(context).pop('original'),
-              ),
-              ListTile(
                 leading: const Icon(Icons.close_rounded),
                 title: const Text('Cancel'),
                 onTap: () => Navigator.of(context).pop(),
@@ -809,9 +1038,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       return;
     }
 
-    if (action == 'original') {
-      await _saveEdits(saveAsCopy: false);
-    }
   }
 
   PreferredSizeWidget _buildTopBar() {
@@ -821,8 +1047,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         onPressed: () => Navigator.of(context).maybePop(),
         icon: const Icon(Icons.arrow_back_ios_new_rounded),
       ),
-      title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(
+        widget.title,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.fade,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
       actions: [
+        IconButton(
+          tooltip: 'Save on original',
+          onPressed: _isSaving ? null : () => _saveEdits(saveAsCopy: false),
+          icon: const Icon(Icons.save_rounded),
+        ),
         if (_hasUnsavedEdits)
           const Padding(
             padding: EdgeInsetsDirectional.only(end: 2),
@@ -840,9 +1077,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? AppColors.darkSurfaceContainer
-            : AppColors.lightSurfaceContainer,
+        gradient: LinearGradient(
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? const <Color>[Color(0xFF2C3145), Color(0xFF1B2033)]
+              : const <Color>[Color(0xFFD9F2FF), Color(0xFFF5FBFF)],
+        ),
         border: Border(
           top: BorderSide(
             color: Theme.of(context).dividerColor.withValues(alpha: 0.25),
@@ -971,15 +1210,20 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? AppColors.darkSurfaceContainerLow
-            : AppColors.lightSurfaceContainerLow,
+        gradient: LinearGradient(
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? const <Color>[Color(0xFF21263A), Color(0xFF161A2B)]
+              : const <Color>[Color(0xFFE7FAEE), Color(0xFFF9FFFB)],
+        ),
       ),
       child: Row(
         children: [
           TextButton.icon(
             onPressed: _currentPage > 1
-                ? () => _controller.jumpToPage(_currentPage - 1)
+                ? () {
+                    _allowProgrammaticPageJump = true;
+                    _controller.jumpToPage(_currentPage - 1);
+                  }
                 : null,
             icon: const Icon(Icons.chevron_left_rounded),
             label: const Text('Previous'),
@@ -994,7 +1238,10 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           ),
           TextButton.icon(
             onPressed: _currentPage < _pageCount
-                ? () => _controller.jumpToPage(_currentPage + 1)
+                ? () {
+                    _allowProgrammaticPageJump = true;
+                    _controller.jumpToPage(_currentPage + 1);
+                  }
                 : null,
             icon: const Icon(Icons.chevron_right_rounded),
             label: const Text('Next'),
@@ -1041,10 +1288,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             onPanUpdate: _isViewMode
                 ? null
                 : (DragUpdateDetails d) {
+                    if (!selected) {
+                      return;
+                    }
                     setState(() {
                       item.position = item.position + d.delta;
-                      _overlayDirty = true;
                     });
+                    _markOverlayDirty();
                   },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -1055,15 +1305,59 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                     ? Border.all(color: Theme.of(context).colorScheme.primary, width: 1.2)
                     : null,
               ),
-              child: Text(
-                item.text,
-                textAlign: item.textAlign,
-                style: TextStyle(
-                  color: item.textColor,
-                  fontSize: item.fontSize,
-                  fontFamily: item.fontFamily,
-                  height: 1.24,
-                ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  SizedBox(
+                    width: item.width,
+                    height: item.height,
+                    child: Text(
+                      item.text,
+                      textAlign: item.textAlign,
+                      style: TextStyle(
+                        color: item.textColor,
+                        fontSize: item.fontSize,
+                        fontFamily: item.fontFamily,
+                        height: 1.24,
+                      ),
+                    ),
+                  ),
+                  if (selected && !_isViewMode)
+                    Positioned(
+                      right: -10,
+                      top: -10,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _currentLayer.texts.removeWhere((t) => t.id == item.id);
+                            _selectedTextId = null;
+                          });
+                          _markOverlayDirty();
+                        },
+                        child: const CircleAvatar(
+                          radius: 10,
+                          backgroundColor: Colors.red,
+                          child: Icon(Icons.close_rounded, color: Colors.white, size: 12),
+                        ),
+                      ),
+                    ),
+                  if (selected && !_isViewMode)
+                    Positioned(
+                      right: -10,
+                      bottom: -10,
+                      child: GestureDetector(
+                        onPanUpdate: (DragUpdateDetails d) {
+                          item.width = (item.width + d.delta.dx).clamp(100, _canvasSize.width);
+                          item.height = (item.height + d.delta.dy).clamp(32, _canvasSize.height * 0.5);
+                          _markOverlayDirty();
+                        },
+                        child: const CircleAvatar(
+                          radius: 10,
+                          child: Icon(Icons.open_in_full_rounded, size: 12),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -1094,10 +1388,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             onPanUpdate: _isViewMode
                 ? null
                 : (DragUpdateDetails d) {
+                    if (!selected) {
+                      return;
+                    }
                     setState(() {
                       item.position = item.position + d.delta;
-                      _overlayDirty = true;
                     });
+                    _markOverlayDirty();
                   },
             child: Stack(
               clipBehavior: Clip.none,
@@ -1123,8 +1420,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                         setState(() {
                           _currentLayer.images.removeWhere((i) => i.id == item.id);
                           _selectedImageId = null;
-                          _overlayDirty = true;
                         });
+                        _markOverlayDirty();
                       },
                       child: const CircleAvatar(
                         radius: 12,
@@ -1143,8 +1440,9 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           final double nextW = (item.size.width + d.delta.dx).clamp(60, _canvasSize.width);
                           final double nextH = (item.size.height + d.delta.dy).clamp(60, _canvasSize.height);
                           item.size = Size(nextW, nextH);
-                          _overlayDirty = true;
+                          _notifyOverlay();
                         });
+                        _markOverlayDirty();
                       },
                       child: const CircleAvatar(
                         radius: 10,
@@ -1182,6 +1480,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                         child: SfPdfViewer.file(
                           File(widget.pdfPath),
                           controller: _controller,
+                          pageLayoutMode: PdfPageLayoutMode.single,
                           canShowPaginationDialog: false,
                           canShowScrollHead: false,
                           canShowPageLoadingIndicator: true,
@@ -1215,6 +1514,19 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                             if (!mounted) {
                               return;
                             }
+
+                            if (!_allowProgrammaticPageJump && details.newPageNumber != details.oldPageNumber) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) {
+                                  return;
+                                }
+                                _allowProgrammaticPageJump = true;
+                                _controller.jumpToPage(details.oldPageNumber);
+                              });
+                              return;
+                            }
+
+                            _allowProgrammaticPageJump = false;
                             setState(() {
                               _currentPage = details.newPageNumber;
                               _selectedImageId = null;
@@ -1226,47 +1538,54 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                       ),
                     ),
                     Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring: _isViewMode,
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: _StrokeOverlayPainter(
-                                  strokes: _currentLayer.strokes,
-                                  activeStroke: _activeStrokePoints,
-                                  activeStrokeColor:
-                                      _activeTool == _EditorCanvasTool.highlighter ? _highlightColor : _drawColor,
-                                  activeStrokeWidth:
-                                      _activeTool == _EditorCanvasTool.highlighter ? 18 : _drawWidth,
-                                  activeStrokeOpacity: _activeTool == _EditorCanvasTool.highlighter
-                                      ? _highlightOpacity.clamp(0.1, 1.0)
-                                      : _drawOpacity,
-                                ),
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _overlayTick,
+                        builder: (BuildContext context, int tick, Widget? child) {
+                          return IgnorePointer(
+                            ignoring: _isViewMode,
+                            child: RepaintBoundary(
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      painter: _StrokeOverlayPainter(
+                                        strokes: _currentLayer.strokes,
+                                        activeStroke: _activeStrokePoints,
+                                        activeStrokeColor:
+                                            _activeTool == _EditorCanvasTool.highlighter ? _highlightColor : _drawColor,
+                                        activeStrokeWidth:
+                                            _activeTool == _EditorCanvasTool.highlighter ? 18 : _drawWidth,
+                                        activeStrokeOpacity: _activeTool == _EditorCanvasTool.highlighter
+                                            ? _highlightOpacity.clamp(0.1, 1.0)
+                                            : _drawOpacity,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned.fill(child: _buildEditableImages()),
+                                  Positioned.fill(child: _buildEditableTexts()),
+                                  Positioned.fill(
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onPanStart: (_activeTool == _EditorCanvasTool.draw ||
+                                              _activeTool == _EditorCanvasTool.highlighter)
+                                          ? _onDrawStart
+                                          : null,
+                                      onPanUpdate: (_activeTool == _EditorCanvasTool.draw ||
+                                              _activeTool == _EditorCanvasTool.highlighter)
+                                          ? _onDrawUpdate
+                                          : null,
+                                      onPanEnd: (_activeTool == _EditorCanvasTool.draw ||
+                                              _activeTool == _EditorCanvasTool.highlighter)
+                                          ? _onDrawEnd
+                                          : null,
+                                      onTapDown: _onCanvasTap,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Positioned.fill(child: _buildEditableImages()),
-                            Positioned.fill(child: _buildEditableTexts()),
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onPanStart: (_activeTool == _EditorCanvasTool.draw ||
-                                    _activeTool == _EditorCanvasTool.highlighter)
-                                  ? _onDrawStart
-                                  : null,
-                                onPanUpdate: (_activeTool == _EditorCanvasTool.draw ||
-                                    _activeTool == _EditorCanvasTool.highlighter)
-                                  ? _onDrawUpdate
-                                  : null,
-                                onPanEnd: (_activeTool == _EditorCanvasTool.draw ||
-                                    _activeTool == _EditorCanvasTool.highlighter)
-                                  ? _onDrawEnd
-                                  : null,
-                                onTapDown: _onCanvasTap,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                     Positioned(
