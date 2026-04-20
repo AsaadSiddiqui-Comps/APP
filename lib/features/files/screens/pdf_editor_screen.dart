@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -110,6 +110,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool _overlayDirty = false;
   Size _canvasSize = const Size(1, 1);
 
+  bool get _hasUnsavedEdits => _overlayDirty;
+
   @override
   void initState() {
     super.initState();
@@ -124,7 +126,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   bool get _overlayToolActive {
-    return _activeTool == _EditorCanvasTool.draw ||
+    return _activeTool == _EditorCanvasTool.highlighter ||
+      _activeTool == _EditorCanvasTool.draw ||
         _activeTool == _EditorCanvasTool.text ||
         _activeTool == _EditorCanvasTool.image;
   }
@@ -426,11 +429,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       _activeTool = tool;
       _selectedTextId = null;
       _selectedImageId = null;
-      if (_activeTool == _EditorCanvasTool.highlighter) {
-        _applyHighlighterSettings();
-      } else {
-        _controller.annotationMode = PdfAnnotationMode.none;
-      }
+      _activeStrokePoints.clear();
     });
 
     if (tool == _EditorCanvasTool.image) {
@@ -438,35 +437,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
     if (tool == _EditorCanvasTool.addPage) {
       _showAddPageMenu();
-    }
-  }
-
-  void _applyHighlighterSettings() {
-    final PdfAnnotationSettings settings = _controller.annotationSettings;
-    final double opacity = _highlightOpacity.clamp(0.1, 1.0);
-
-    settings.highlight
-      ..color = _highlightColor
-      ..opacity = opacity;
-    settings.underline
-      ..color = _highlightColor
-      ..opacity = opacity;
-    settings.strikethrough
-      ..color = _highlightColor
-      ..opacity = opacity;
-    settings.squiggly
-      ..color = _highlightColor
-      ..opacity = opacity;
-
-    switch (_highlightMode) {
-      case HighlightMode.highlight:
-        _controller.annotationMode = PdfAnnotationMode.highlight;
-      case HighlightMode.underline:
-        _controller.annotationMode = PdfAnnotationMode.underline;
-      case HighlightMode.strike:
-        _controller.annotationMode = PdfAnnotationMode.strikethrough;
-      case HighlightMode.squiggly:
-        _controller.annotationMode = PdfAnnotationMode.squiggly;
     }
   }
 
@@ -480,9 +450,14 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   void _onDrawStart(DragStartDetails details) {
-    if (_isViewMode || _activeTool != _EditorCanvasTool.draw) {
+    if (_isViewMode) {
       return;
     }
+
+    if (_activeTool != _EditorCanvasTool.draw && _activeTool != _EditorCanvasTool.highlighter) {
+      return;
+    }
+
     if (_drawMode == DrawMode.eraser) {
       _eraseAt(details.localPosition);
       return;
@@ -494,11 +469,15 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   void _onDrawUpdate(DragUpdateDetails details) {
-    if (_isViewMode || _activeTool != _EditorCanvasTool.draw) {
+    if (_isViewMode) {
       return;
     }
 
-    if (_drawMode == DrawMode.eraser) {
+    if (_activeTool != _EditorCanvasTool.draw && _activeTool != _EditorCanvasTool.highlighter) {
+      return;
+    }
+
+    if (_activeTool == _EditorCanvasTool.draw && _drawMode == DrawMode.eraser) {
       _eraseAt(details.localPosition);
       return;
     }
@@ -508,11 +487,15 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   }
 
   void _onDrawEnd(DragEndDetails details) {
-    if (_isViewMode || _activeTool != _EditorCanvasTool.draw) {
+    if (_isViewMode) {
       return;
     }
 
-    if (_drawMode == DrawMode.eraser) {
+    if (_activeTool != _EditorCanvasTool.draw && _activeTool != _EditorCanvasTool.highlighter) {
+      return;
+    }
+
+    if (_activeTool == _EditorCanvasTool.draw && _drawMode == DrawMode.eraser) {
       setState(() {});
       return;
     }
@@ -526,9 +509,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _currentLayer.strokes.add(
       StrokePath(
         points: List<Offset>.from(_activeStrokePoints),
-        color: _drawColor,
-        width: _drawWidth,
-        opacity: _drawOpacity,
+        color: _activeTool == _EditorCanvasTool.highlighter ? _highlightColor : _drawColor,
+        width: _activeTool == _EditorCanvasTool.highlighter ? 18 : _drawWidth,
+        opacity: _activeTool == _EditorCanvasTool.highlighter
+            ? _highlightOpacity.clamp(0.1, 1.0)
+            : _drawOpacity,
       ),
     );
     _activeStrokePoints.clear();
@@ -838,6 +823,11 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       ),
       title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       actions: [
+        if (_hasUnsavedEdits)
+          const Padding(
+            padding: EdgeInsetsDirectional.only(end: 2),
+            child: Icon(Icons.fiber_manual_record_rounded, size: 10),
+          ),
         IconButton(
           onPressed: _showTopMenu,
           icon: const Icon(Icons.more_vert_rounded),
@@ -910,15 +900,12 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
         highlightOpacity: _highlightOpacity,
         onColorChanged: (Color c) => setState(() {
           _highlightColor = c;
-          _applyHighlighterSettings();
         }),
         onOpacityChanged: (double v) => setState(() {
           _highlightOpacity = v;
-          _applyHighlighterSettings();
         }),
         onModeChanged: (HighlightMode v) => setState(() {
           _highlightMode = v;
-          _applyHighlighterSettings();
         }),
       );
     } else if (_activeTool == _EditorCanvasTool.draw) {
@@ -1200,7 +1187,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                           canShowPageLoadingIndicator: true,
                           canShowScrollStatus: false,
                           interactionMode: PdfInteractionMode.pan,
-                          enableTextSelection: !_isViewMode && _activeTool == _EditorCanvasTool.highlighter,
+                          enableTextSelection: false,
                           enableDoubleTapZooming: true,
                           maxZoomLevel: 5,
                           pageSpacing: 2,
@@ -1248,9 +1235,13 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                                 painter: _StrokeOverlayPainter(
                                   strokes: _currentLayer.strokes,
                                   activeStroke: _activeStrokePoints,
-                                  activeStrokeColor: _drawColor,
-                                  activeStrokeWidth: _drawWidth,
-                                  activeStrokeOpacity: _drawOpacity,
+                                  activeStrokeColor:
+                                      _activeTool == _EditorCanvasTool.highlighter ? _highlightColor : _drawColor,
+                                  activeStrokeWidth:
+                                      _activeTool == _EditorCanvasTool.highlighter ? 18 : _drawWidth,
+                                  activeStrokeOpacity: _activeTool == _EditorCanvasTool.highlighter
+                                      ? _highlightOpacity.clamp(0.1, 1.0)
+                                      : _drawOpacity,
                                 ),
                               ),
                             ),
@@ -1259,9 +1250,18 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                             Positioned.fill(
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
-                                onPanStart: _activeTool == _EditorCanvasTool.draw ? _onDrawStart : null,
-                                onPanUpdate: _activeTool == _EditorCanvasTool.draw ? _onDrawUpdate : null,
-                                onPanEnd: _activeTool == _EditorCanvasTool.draw ? _onDrawEnd : null,
+                                onPanStart: (_activeTool == _EditorCanvasTool.draw ||
+                                    _activeTool == _EditorCanvasTool.highlighter)
+                                  ? _onDrawStart
+                                  : null,
+                                onPanUpdate: (_activeTool == _EditorCanvasTool.draw ||
+                                    _activeTool == _EditorCanvasTool.highlighter)
+                                  ? _onDrawUpdate
+                                  : null,
+                                onPanEnd: (_activeTool == _EditorCanvasTool.draw ||
+                                    _activeTool == _EditorCanvasTool.highlighter)
+                                  ? _onDrawEnd
+                                  : null,
                                 onTapDown: _onCanvasTap,
                               ),
                             ),
