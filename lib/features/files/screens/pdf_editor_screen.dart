@@ -123,8 +123,6 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     return _overlaysByPage.putIfAbsent(_currentPage, _PageOverlayData.new);
   }
 
-  bool get _hasUnsavedEdits => _overlayDirty;
-
   bool get _overlayToolActive {
     return _activeTool == _EditorCanvasTool.draw ||
         _activeTool == _EditorCanvasTool.text ||
@@ -831,7 +829,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     }
   }
 
-  Widget _buildTopBar() {
+  PreferredSizeWidget _buildTopBar() {
     return AppBar(
       centerTitle: true,
       leading: IconButton(
