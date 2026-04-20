@@ -63,6 +63,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
   bool _annotationDirty = false;
   bool _overlayDirty = false;
   Size _overlaySize = const Size(1, 1);
+  int _canvasRevision = 0;
 
   @override
   void initState() {
@@ -168,6 +169,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             }).toList(growable: false),
           );
         _overlayDirty = false;
+        _canvasRevision += 1;
       });
       _overlayTick.value += 1;
     } catch (_) {
@@ -382,12 +384,17 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     _redoStack.clear();
   }
 
+  void _markCanvasDirty() {
+    _canvasRevision += 1;
+    _overlayTick.value += 1;
+  }
+
   void _undo() {
     if (_undoStack.isEmpty) return;
     final EditorAction action = _undoStack.removeLast();
     action.undo();
     _redoStack.add(action);
-    _overlayTick.value += 1;
+    _markCanvasDirty();
     setState(() {});
   }
 
@@ -396,7 +403,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     final EditorAction action = _redoStack.removeLast();
     action.redo();
     _undoStack.add(action);
-    _overlayTick.value += 1;
+    _markCanvasDirty();
     setState(() {});
   }
 
@@ -442,8 +449,8 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
           },
         ));
         _overlayDirty = true;
+        _markCanvasDirty();
       }
-      _overlayTick.value += 1;
       setState(() {});
       return;
     }
@@ -467,7 +474,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
     ));
     _overlayDirty = true;
     _activeStrokePoints = <Offset>[];
-    _overlayTick.value += 1;
+    _markCanvasDirty();
     setState(() {});
   }
 
@@ -581,7 +588,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
       redo: () => _textOverlays.add(item),
     ));
     _overlayDirty = true;
-    _overlayTick.value += 1;
+    _markCanvasDirty();
     setState(() {});
   }
 
@@ -680,6 +687,7 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
             activeStrokeColor: _drawColor,
             activeStrokeWidth: _drawWidth,
             activeStrokeOpacity: _drawOpacity,
+            revision: _canvasRevision,
             onDrawComplete: () => _overlayTick.value += 1,
             repaint: _overlayTick,
           ),

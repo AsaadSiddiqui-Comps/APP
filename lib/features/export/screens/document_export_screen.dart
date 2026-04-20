@@ -368,9 +368,7 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
                     backgroundColor: accent,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(
-                    'Export (${_estimatedSizeMb.toStringAsFixed(1)} MB)',
-                  ),
+                  child: Text('Export (${_formatEstimatedSize()})'),
                 ),
               ),
             ],
@@ -378,6 +376,18 @@ class _DocumentExportScreenState extends State<DocumentExportScreen> {
         ),
       ),
     );
+  }
+
+  String _formatEstimatedSize() {
+    if (_estimatedSizeMb < 1) {
+      final double kilobytes = _estimatedSizeMb * 1024;
+      final String value = kilobytes >= 10
+          ? kilobytes.toStringAsFixed(0)
+          : kilobytes.toStringAsFixed(1);
+      return '$value KB';
+    }
+
+    return '${_estimatedSizeMb.toStringAsFixed(1)} MB';
   }
 
   Widget _exportTypeCard({

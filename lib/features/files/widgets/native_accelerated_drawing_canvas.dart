@@ -18,6 +18,7 @@ class NativeAcceleratedDrawingCanvas extends StatefulWidget {
     required this.activeStrokeColor,
     required this.activeStrokeWidth,
     required this.activeStrokeOpacity,
+    required this.revision,
     required this.onDrawComplete,
     required this.repaint,
   });
@@ -28,6 +29,7 @@ class NativeAcceleratedDrawingCanvas extends StatefulWidget {
   final Color activeStrokeColor;
   final double activeStrokeWidth;
   final double activeStrokeOpacity;
+  final int revision;
   final VoidCallback onDrawComplete;
   final Listenable repaint;
 
@@ -41,6 +43,7 @@ class _NativeAcceleratedDrawingCanvasState
   bool _useNativeRenderer = false;
   Uint8List? _nativeRenderedImage;
   bool _isNativeInitialized = false;
+  int _lastSyncedRevision = -1;
 
   @override
   void initState() {
@@ -64,8 +67,8 @@ class _NativeAcceleratedDrawingCanvasState
   void didUpdateWidget(NativeAcceleratedDrawingCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Sync native renderer with Dart state changes if applicable
-    if (_useNativeRenderer && widget.strokes != oldWidget.strokes) {
+    // Sync native renderer when the parent signals committed content changes.
+    if (_useNativeRenderer && widget.revision != _lastSyncedRevision) {
       _syncNativeRenderer();
     }
   }
@@ -100,6 +103,7 @@ class _NativeAcceleratedDrawingCanvasState
       } else {
         _nativeRenderedImage = png;
       }
+      _lastSyncedRevision = widget.revision;
     } catch (e) {
       debugPrint('Error syncing native renderer: $e');
     }
