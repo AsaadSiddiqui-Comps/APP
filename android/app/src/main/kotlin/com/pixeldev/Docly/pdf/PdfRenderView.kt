@@ -112,7 +112,7 @@ class PdfRenderView(
     private fun drawTexts(canvas: Canvas, frame: PdfRenderFrame) {
         frame.texts.forEach { op ->
             textPaint.color = op.color
-            textPaint.textSize = op.fontSize
+            textPaint.textSize = op.fontSize.toFloat()
             canvas.drawText(op.text, op.x.toFloat(), op.y.toFloat(), textPaint)
         }
     }
