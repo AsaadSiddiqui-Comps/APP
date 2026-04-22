@@ -157,7 +157,9 @@ class EditorController {
   }
 
   Future<void> addText(String text, Offset p) async {
-    await _bridge.addText(text, p.dx, p.dy);
+    final color = state.value.textColor.value;
+    final fontSize = state.value.textSize;
+    await _bridge.addText(text, p.dx, p.dy, color: color, fontSize: fontSize);
     _operations.add(
       PdfTextOperation(
         page: state.value.currentPage,
@@ -170,13 +172,14 @@ class EditorController {
   }
 
   Future<void> addImage(String path, Offset p) async {
-    await _bridge.addImage(path, p.dx, p.dy);
+    const imageSize = Size(180, 180);
+    await _bridge.addImage(path, p.dx, p.dy, width: imageSize.width, height: imageSize.height);
     _operations.add(
       PdfImageOperation(
         page: state.value.currentPage,
         path: path,
         position: p,
-        size: const Size(180, 180),
+        size: imageSize,
       ),
     );
   }

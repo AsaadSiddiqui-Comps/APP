@@ -83,13 +83,13 @@ class PdfEngine {
         rebuildFrame(refreshBase = false)
     }
 
-    fun addText(text: String, x: Double, y: Double) {
-        annotationHandler.addText(TextOperation(currentPage, text, x, y))
+    fun addText(text: String, x: Double, y: Double, color: Int = 0xFF000000.toInt(), fontSize: Double = 16.0) {
+        annotationHandler.addText(TextOperation(currentPage, text, x, y, color, fontSize))
         rebuildFrame(refreshBase = false)
     }
 
-    fun addImage(path: String, x: Double, y: Double) {
-        annotationHandler.addImage(ImageOperation(currentPage, path, x, y))
+    fun addImage(path: String, x: Double, y: Double, width: Double = 100.0, height: Double = 100.0) {
+        annotationHandler.addImage(ImageOperation(currentPage, path, x, y, width, height))
         rebuildFrame(refreshBase = false)
     }
 

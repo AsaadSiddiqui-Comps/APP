@@ -15,6 +15,8 @@ struct TextOperation {
   let text: String
   let x: Double
   let y: Double
+  let color: Int
+  let fontSize: Double
 }
 
 struct ImageOperation {
@@ -22,6 +24,8 @@ struct ImageOperation {
   let path: String
   let x: Double
   let y: Double
+  let width: Double
+  let height: Double
 }
 
 final class AnnotationHandler {

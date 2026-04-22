@@ -76,7 +76,9 @@ final class PlatformBridge {
       let text = args["text"] as? String ?? ""
       let x = (args["x"] as? NSNumber)?.doubleValue ?? 0
       let y = (args["y"] as? NSNumber)?.doubleValue ?? 0
-      engine.addText(text: text, x: x, y: y)
+      let color = (args["color"] as? NSNumber)?.intValue ?? Int(0xFF000000)
+      let fontSize = (args["fontSize"] as? NSNumber)?.doubleValue ?? 16.0
+      engine.addText(text: text, x: x, y: y, color: color, fontSize: fontSize)
       result(nil)
 
     case "addImage":
@@ -87,7 +89,9 @@ final class PlatformBridge {
       let path = args["path"] as? String ?? ""
       let x = (args["x"] as? NSNumber)?.doubleValue ?? 0
       let y = (args["y"] as? NSNumber)?.doubleValue ?? 0
-      engine.addImage(path: path, x: x, y: y)
+      let width = (args["width"] as? NSNumber)?.doubleValue ?? 100.0
+      let height = (args["height"] as? NSNumber)?.doubleValue ?? 100.0
+      engine.addImage(path: path, x: x, y: y, width: width, height: height)
       result(nil)
 
     case "addPage":

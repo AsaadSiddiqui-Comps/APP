@@ -14,14 +14,18 @@ data class TextOperation(
     val page: Int,
     val text: String,
     val x: Double,
-    val y: Double
+    val y: Double,
+    val color: Int = 0xFF000000.toInt(),
+    val fontSize: Double = 16.0
 )
 
 data class ImageOperation(
     val page: Int,
     val path: String,
     val x: Double,
-    val y: Double
+    val y: Double,
+    val width: Double = 100.0,
+    val height: Double = 100.0
 )
 
 class AnnotationHandler {

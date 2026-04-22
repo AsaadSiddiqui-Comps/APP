@@ -66,13 +66,13 @@ final class PdfEngine {
     rebuildFrame(refreshBase: false)
   }
 
-  func addText(text: String, x: Double, y: Double) {
-    annotationHandler.addText(TextOperation(page: currentPage, text: text, x: x, y: y))
+  func addText(text: String, x: Double, y: Double, color: Int = Int(0xFF000000), fontSize: Double = 16.0) {
+    annotationHandler.addText(TextOperation(page: currentPage, text: text, x: x, y: y, color: color, fontSize: fontSize))
     rebuildFrame(refreshBase: false)
   }
 
-  func addImage(path: String, x: Double, y: Double) {
-    annotationHandler.addImage(ImageOperation(page: currentPage, path: path, x: x, y: y))
+  func addImage(path: String, x: Double, y: Double, width: Double = 100.0, height: Double = 100.0) {
+    annotationHandler.addImage(ImageOperation(page: currentPage, path: path, x: x, y: y, width: width, height: height))
     rebuildFrame(refreshBase: false)
   }
 

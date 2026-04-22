@@ -46,14 +46,18 @@ class PlatformBridge(private val flutterEngine: FlutterEngine) {
                     val text = call.argument<String>("text") ?: ""
                     val x = (call.argument<Number>("x") ?: 0.0).toDouble()
                     val y = (call.argument<Number>("y") ?: 0.0).toDouble()
-                    engine.addText(text, x, y)
+                    val color = call.argument<Int>("color") ?: 0xFF000000.toInt()
+                    val fontSize = (call.argument<Number>("fontSize") ?: 16.0).toDouble()
+                    engine.addText(text, x, y, color, fontSize)
                     result.success(null)
                 }
                 "addImage" -> {
                     val path = call.argument<String>("path") ?: ""
                     val x = (call.argument<Number>("x") ?: 0.0).toDouble()
                     val y = (call.argument<Number>("y") ?: 0.0).toDouble()
-                    engine.addImage(path, x, y)
+                    val width = (call.argument<Number>("width") ?: 100.0).toDouble()
+                    val height = (call.argument<Number>("height") ?: 100.0).toDouble()
+                    engine.addImage(path, x, y, width, height)
                     result.success(null)
                 }
                 "addPage" -> {

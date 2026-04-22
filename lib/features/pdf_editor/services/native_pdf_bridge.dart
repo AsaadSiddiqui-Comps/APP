@@ -19,19 +19,23 @@ class NativePdfBridge {
     await _channel.invokeMethod('addHighlight', rect);
   }
 
-  Future<void> addText(String text, double x, double y) async {
+  Future<void> addText(String text, double x, double y, {int color = 0xFF000000, double fontSize = 16.0}) async {
     await _channel.invokeMethod('addText', <String, dynamic>{
       'text': text,
       'x': x,
       'y': y,
+      'color': color,
+      'fontSize': fontSize,
     });
   }
 
-  Future<void> addImage(String path, double x, double y) async {
+  Future<void> addImage(String path, double x, double y, {double width = 100.0, double height = 100.0}) async {
     await _channel.invokeMethod('addImage', <String, dynamic>{
       'path': path,
       'x': x,
       'y': y,
+      'width': width,
+      'height': height,
     });
   }
 
