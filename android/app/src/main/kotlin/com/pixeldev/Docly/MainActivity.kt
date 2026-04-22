@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import com.pixeldev.Docly.pdf.PlatformBridge
+import com.pixeldev.Docly.pdf.PdfPlatformViewFactory
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -21,7 +23,7 @@ class MainActivity : FlutterActivity() {
     private val fileOpenChannel = "com.pixeldev.Docly/file_open"
     private val imageProcessor = ImageProcessor()
     private var pendingPdfPath: String? = null
-    private var nativeDrawingEngine: NativeDrawingEngine? = null
+    private var pdfPlatformBridge: PlatformBridge? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,8 +39,12 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        nativeDrawingEngine = NativeDrawingEngine(flutterEngine)
-        nativeDrawingEngine?.attach()
+        pdfPlatformBridge = PlatformBridge(flutterEngine)
+        flutterEngine.platformViewsController.registry.registerViewFactory(
+            "pdf_render_view",
+            PdfPlatformViewFactory(pdfPlatformBridge!!.engine)
+        )
+        pdfPlatformBridge?.attach()
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, storageChannel)
             .setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
@@ -70,8 +76,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
-        nativeDrawingEngine?.dispose()
-        nativeDrawingEngine = null
+        pdfPlatformBridge?.dispose()
+        pdfPlatformBridge = null
         super.onDestroy()
     }
 

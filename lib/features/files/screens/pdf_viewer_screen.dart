@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,11 +5,7 @@ import 'package:printing/printing.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../documents/data/document_storage_service.dart';
-import 'pdf_editor_screen.dart';
-import '../models/pdf_edit_models.dart';
-import '../widgets/editor_tool_panel.dart';
-import '../widgets/native_accelerated_drawing_canvas.dart';
+import '../../pdf_editor/screens/pdf_editor_screen.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   const PdfViewerScreen({
@@ -29,46 +24,13 @@ class PdfViewerScreen extends StatefulWidget {
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
   late final PdfViewerController _controller;
   final TextEditingController _searchController = TextEditingController();
-  final ValueNotifier<int> _overlayTick = ValueNotifier<int>(0);
 
   int _currentPage = 1;
   int _pageCount = 0;
   bool _isLoading = true;
   bool _searchMode = false;
-  bool _chromeVisible = true;
-  bool _toolMenuOpen = false;
-
   String? _loadError;
   PdfTextSearchResult? _searchResult;
-
-  EditorTool _activeTool = EditorTool.none;
-  HighlightMode _highlightMode = HighlightMode.highlight;
-  Color _highlightColor = const Color(0xFFFFEB3B);
-  double _highlightOpacity = 0.42;
-
-  DrawMode _drawMode = DrawMode.pen;
-  Color _drawColor = const Color(0xFFEF5350);
-  double _drawWidth = 4;
-  double _drawOpacity = 1.0;
-  double _eraserSize = 24;
-
-  Color _textColor = Colors.white;
-  Color _textBackground = Colors.black54;
-  double _textSize = 22;
-  TextAlign _textAlign = TextAlign.left;
-  String _textFont = 'Roboto';
-
-  final List<StrokePath> _strokes = <StrokePath>[];
-  final List<TextOverlay> _textOverlays = <TextOverlay>[];
-  final List<EditorAction> _undoStack = <EditorAction>[];
-  final List<EditorAction> _redoStack = <EditorAction>[];
-  List<Offset> _activeStrokePoints = <Offset>[];
-  List<StrokePath>? _eraseBeforeSnapshot;
-
-  bool _annotationDirty = false;
-  bool _overlayDirty = false;
-  bool _isSaving = false;
-  Size _overlaySize = const Size(1, 1);
 
   @override
   void initState() {
@@ -78,294 +40,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   void dispose() {
-    _searchResult?.removeListener(_handleSearchResultChanged);
+    _searchResult?.removeListener(_onSearchChanged);
     _searchController.dispose();
-    _overlayTick.dispose();
     super.dispose();
   }
 
-  bool get _hasUnsavedEdits => _annotationDirty || _overlayDirty;
-
-  String _sidecarPathFor(String pdfPath) => '$pdfPath.docly_overlay.json';
-
-  Future<void> _loadOverlayData() async {
-    try {
-      final File sidecar = File(_sidecarPathFor(widget.pdfPath));
-      if (!await sidecar.exists()) {
-        return;
-      }
-      final String raw = await sidecar.readAsString();
-      if (raw.trim().isEmpty) {
-        return;
-      }
-
-      final Map<String, dynamic> map =
-          (jsonDecode(raw) as Map<dynamic, dynamic>).cast<String, dynamic>();
-      final double baseWidth = (map['canvasWidth'] as num?)?.toDouble() ?? 1;
-      final double baseHeight = (map['canvasHeight'] as num?)?.toDouble() ?? 1;
-      final double targetWidth = _overlaySize.width > 1
-          ? _overlaySize.width
-          : baseWidth;
-      final double targetHeight = _overlaySize.height > 1
-          ? _overlaySize.height
-          : baseHeight;
-      final List<dynamic> strokesRaw =
-          map['strokes'] as List<dynamic>? ?? <dynamic>[];
-      final List<dynamic> textsRaw =
-          map['texts'] as List<dynamic>? ?? <dynamic>[];
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _strokes
-          ..clear()
-          ..addAll(
-            strokesRaw
-                .whereType<Map<dynamic, dynamic>>()
-                .map((Map<dynamic, dynamic> e) {
-                  final List<dynamic> pointsRaw =
-                      e['points'] as List<dynamic>? ?? <dynamic>[];
-                  return StrokePath(
-                    points: pointsRaw
-                        .whereType<Map<dynamic, dynamic>>()
-                        .map((Map<dynamic, dynamic> p) {
-                          final double nx = (p['x'] as num?)?.toDouble() ?? 0;
-                          final double ny = (p['y'] as num?)?.toDouble() ?? 0;
-                          return Offset(nx * targetWidth, ny * targetHeight);
-                        })
-                        .toList(growable: false),
-                    color: Color(
-                      (e['color'] as num?)?.toInt() ?? Colors.red.toARGB32(),
-                    ),
-                    width: (e['width'] as num?)?.toDouble() ?? 4,
-                    opacity: (e['opacity'] as num?)?.toDouble() ?? 1,
-                  );
-                })
-                .where((_) => true),
-          );
-
-        _textOverlays
-          ..clear()
-          ..addAll(
-            textsRaw
-                .whereType<Map<dynamic, dynamic>>()
-                .map((Map<dynamic, dynamic> e) {
-                  final double nx = (e['x'] as num?)?.toDouble() ?? 0;
-                  final double ny = (e['y'] as num?)?.toDouble() ?? 0;
-                  final String alignName = (e['align'] as String?) ?? 'left';
-                  final TextAlign align = TextAlign.values.firstWhere(
-                    (TextAlign t) => t.name == alignName,
-                    orElse: () => TextAlign.left,
-                  );
-                  return TextOverlay(
-                    text: (e['text'] as String?) ?? '',
-                    position: Offset(nx * targetWidth, ny * targetHeight),
-                    textColor: Color(
-                      (e['textColor'] as num?)?.toInt() ??
-                          Colors.white.toARGB32(),
-                    ),
-                    backgroundColor: Color(
-                      (e['bgColor'] as num?)?.toInt() ??
-                          Colors.transparent.toARGB32(),
-                    ),
-                    fontSize: (e['fontSize'] as num?)?.toDouble() ?? 22,
-                    fontFamily: (e['font'] as String?) ?? 'Roboto',
-                    textAlign: align,
-                  );
-                })
-                .where((_) => true),
-          );
-
-        _overlayDirty = false;
-      });
-      _overlayTick.value += 1;
-    } catch (_) {
-      // Ignore sidecar load errors.
-    }
-  }
-
-  Future<void> _persistOverlayData(String targetPdfPath) async {
-    final double width = _overlaySize.width <= 0 ? 1 : _overlaySize.width;
-    final double height = _overlaySize.height <= 0 ? 1 : _overlaySize.height;
-
-    final Map<String, dynamic> payload = <String, dynamic>{
-      'canvasWidth': width,
-      'canvasHeight': height,
-      'strokes': _strokes
-          .map(
-            (StrokePath s) => <String, dynamic>{
-              'color': s.color.toARGB32(),
-              'width': s.width,
-              'opacity': s.opacity,
-              'points': s.points
-                  .map(
-                    (Offset p) => <String, dynamic>{
-                      'x': p.dx / width,
-                      'y': p.dy / height,
-                    },
-                  )
-                  .toList(growable: false),
-            },
-          )
-          .toList(growable: false),
-      'texts': _textOverlays
-          .map(
-            (TextOverlay t) => <String, dynamic>{
-              'text': t.text,
-              'x': t.position.dx / width,
-              'y': t.position.dy / height,
-              'textColor': t.textColor.toARGB32(),
-              'bgColor': t.backgroundColor.toARGB32(),
-              'fontSize': t.fontSize,
-              'font': t.fontFamily,
-              'align': t.textAlign.name,
-            },
-          )
-          .toList(growable: false),
-    };
-
-    final File sidecar = File(_sidecarPathFor(targetPdfPath));
-    if (_strokes.isEmpty && _textOverlays.isEmpty) {
-      if (await sidecar.exists()) {
-        await sidecar.delete();
-      }
-      return;
-    }
-
-    await sidecar.writeAsString(jsonEncode(payload));
-  }
-
-  Future<void> _showDoneMenu() async {
-    if (!_hasUnsavedEdits) {
-      _setActiveTool(EditorTool.none);
-      return;
-    }
-
-    final String? action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.copy_rounded),
-                title: const Text('Save as Copy'),
-                subtitle: const Text('Keep original file unchanged'),
-                onTap: () => Navigator.of(context).pop('copy'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.save_rounded),
-                title: const Text('Save as Original'),
-                subtitle: const Text('Overwrite current PDF file'),
-                onTap: () => Navigator.of(context).pop('original'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.close_rounded),
-                title: const Text('Cancel'),
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-        );
-      },
+  void _openEditor() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PdfEditorScreen(
+          pdfPath: widget.pdfPath,
+          title: widget.title,
+        ),
+      ),
     );
-
-    if (action == 'copy') {
-      await _saveEdits(saveAsCopy: true);
-    } else if (action == 'original') {
-      await _saveEdits(saveAsCopy: false);
-    }
-  }
-
-  Future<void> _saveEdits({required bool saveAsCopy}) async {
-    if (_isSaving) {
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _toolMenuOpen = false;
-      _searchMode = false;
-      _chromeVisible = true;
-    });
-
-    try {
-      final List<int> savedBytes = await _controller.saveDocument();
-      if (saveAsCopy) {
-        final Directory exportDir = await DocumentStorageService.instance
-            .getExportedDir();
-        final String now = DateTime.now().millisecondsSinceEpoch.toString();
-        final String fileName = _buildCopyFileName(now);
-        final String tempPath =
-            '${exportDir.path}${Platform.pathSeparator}$fileName';
-
-        await File(tempPath).writeAsBytes(savedBytes, flush: true);
-        final String finalPath = await DocumentStorageService.instance
-            .saveFileToPublicDownloads(
-              sourcePath: tempPath,
-              displayName: fileName,
-              mimeType: 'application/pdf',
-            );
-        final File tempFile = File(tempPath);
-        if (await tempFile.exists()) {
-          await tempFile.delete();
-        }
-        await DocumentStorageService.instance.scanFile(finalPath);
-        await _persistOverlayData(finalPath);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Saved copy: ${File(finalPath).uri.pathSegments.last}',
-              ),
-            ),
-          );
-        }
-      } else {
-        final File target = File(widget.pdfPath);
-        await target.writeAsBytes(savedBytes, flush: true);
-        await DocumentStorageService.instance.scanFile(widget.pdfPath);
-        await _persistOverlayData(widget.pdfPath);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Original PDF updated successfully.')),
-          );
-        }
-      }
-
-      setState(() {
-        _annotationDirty = false;
-        _overlayDirty = false;
-        _activeTool = EditorTool.none;
-      });
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to save PDF edits. Try again.')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
-  }
-
-  String _buildCopyFileName(String suffix) {
-    final String original = File(widget.pdfPath).uri.pathSegments.last;
-    final String cleanOriginal = original.toLowerCase().endsWith('.pdf')
-        ? original.substring(0, original.length - 4)
-        : original;
-    final String safe = cleanOriginal.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-    return '${safe}_edited_$suffix.pdf';
   }
 
   Future<void> _share() async {
@@ -373,159 +61,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     if (!await file.exists()) {
       return;
     }
-
-    final String fileName = file.uri.pathSegments.last;
-    final bytes = await file.readAsBytes();
-    await Printing.sharePdf(bytes: bytes, filename: fileName);
-  }
-
-  void _zoomIn() {
-    final double next = (_controller.zoomLevel + 0.25).clamp(1.0, 5.0);
-    _controller.zoomLevel = next;
-  }
-
-  void _zoomOut() {
-    final double next = (_controller.zoomLevel - 0.25).clamp(1.0, 5.0);
-    _controller.zoomLevel = next;
-  }
-
-  void _setActiveTool(EditorTool tool) {
-    setState(() {
-      _activeTool = tool;
-      _toolMenuOpen = false;
-      _chromeVisible = true;
-      if (_activeTool != EditorTool.highlighter) {
-        _controller.annotationMode = PdfAnnotationMode.none;
-      }
-      if (_activeTool == EditorTool.highlighter) {
-        _applyHighlighterSettings();
-      }
-    });
-  }
-
-  void _applyHighlighterSettings() {
-    final PdfAnnotationSettings settings = _controller.annotationSettings;
-    final double opacity = _highlightOpacity.clamp(0.1, 1.0);
-
-    settings.highlight
-      ..color = _highlightColor
-      ..opacity = opacity;
-    settings.underline
-      ..color = _highlightColor
-      ..opacity = opacity;
-    settings.strikethrough
-      ..color = _highlightColor
-      ..opacity = opacity;
-    settings.squiggly
-      ..color = _highlightColor
-      ..opacity = opacity;
-
-    switch (_highlightMode) {
-      case HighlightMode.highlight:
-        _controller.annotationMode = PdfAnnotationMode.highlight;
-      case HighlightMode.underline:
-        _controller.annotationMode = PdfAnnotationMode.underline;
-      case HighlightMode.strike:
-        _controller.annotationMode = PdfAnnotationMode.strikethrough;
-      case HighlightMode.squiggly:
-        _controller.annotationMode = PdfAnnotationMode.squiggly;
-    }
-  }
-
-  void _toggleChrome() {
-    if (!mounted) {
-      return;
-    }
-    if (_activeTool != EditorTool.none) {
-      return;
-    }
-    setState(() {
-      _chromeVisible = !_chromeVisible;
-    });
-  }
-
-  void _setChromeVisible(bool visible) {
-    if (!mounted || _chromeVisible == visible) {
-      return;
-    }
-    setState(() {
-      _chromeVisible = visible;
-    });
-  }
-
-  Future<void> _showJumpToPageDialog() async {
-    if (_pageCount <= 0) {
-      return;
-    }
-
-    final TextEditingController pageController = TextEditingController(
-      text: _currentPage.toString(),
+    await Printing.sharePdf(
+      bytes: await file.readAsBytes(),
+      filename: file.uri.pathSegments.last,
     );
-
-    final int? targetPage = await showDialog<int>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Jump To Page'),
-          content: TextField(
-            controller: pageController,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: 'Page number (1-$_pageCount)',
-            ),
-            onSubmitted: (String value) {
-              final int? parsed = int.tryParse(value.trim());
-              Navigator.of(context).pop(parsed);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final int? parsed = int.tryParse(pageController.text.trim());
-                Navigator.of(context).pop(parsed);
-              },
-              child: const Text('Go'),
-            ),
-          ],
-        );
-      },
-    );
-
-    pageController.dispose();
-
-    if (targetPage == null) {
-      return;
-    }
-
-    final int clamped = targetPage.clamp(1, _pageCount);
-    _controller.jumpToPage(clamped);
   }
 
-  void _openSearchMode() {
-    setState(() {
-      _searchMode = true;
-      _chromeVisible = true;
-      _toolMenuOpen = false;
-    });
-  }
-
-  void _closeSearchMode() {
-    _searchResult?.removeListener(_handleSearchResultChanged);
-    _searchResult?.clear();
-    _searchResult = null;
-
-    setState(() {
-      _searchMode = false;
-      _searchController.clear();
-    });
-  }
-
-  void _handleSearchResultChanged() {
+  void _onSearchChanged() {
     if (!mounted) {
       return;
     }
@@ -540,304 +82,70 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       return;
     }
 
-    _searchResult?.removeListener(_handleSearchResultChanged);
+    _searchResult?.removeListener(_onSearchChanged);
     final PdfTextSearchResult result = _controller.searchText(query);
-    result.addListener(_handleSearchResultChanged);
+    result.addListener(_onSearchChanged);
     _searchResult = result;
     setState(() {});
   }
 
-  void _nextSearchResult() {
-    _searchResult?.nextInstance();
+  void _closeSearch() {
+    _searchResult?.removeListener(_onSearchChanged);
+    _searchResult?.clear();
+    _searchResult = null;
+    setState(() {
+      _searchMode = false;
+      _searchController.clear();
+    });
   }
 
-  void _previousSearchResult() {
-    _searchResult?.previousInstance();
-  }
-
-  void _pushAction(EditorAction action) {
-    _undoStack.add(action);
-    _redoStack.clear();
-  }
-
-  void _undo() {
-    if (_undoStack.isEmpty) {
-      return;
-    }
-    final EditorAction action = _undoStack.removeLast();
-    action.undo();
-    _redoStack.add(action);
-    _overlayTick.value += 1;
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _redo() {
-    if (_redoStack.isEmpty) {
-      return;
-    }
-    final EditorAction action = _redoStack.removeLast();
-    action.redo();
-    _undoStack.add(action);
-    _overlayTick.value += 1;
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _onDrawStart(DragStartDetails details) {
-    if (_activeTool != EditorTool.draw) {
+  Future<void> _jumpToPageDialog() async {
+    if (_pageCount <= 0) {
       return;
     }
 
-    if (_drawMode == DrawMode.eraser) {
-      _eraseBeforeSnapshot = _cloneStrokes(_strokes);
-      _eraseAt(details.localPosition);
-    } else {
-      _activeStrokePoints = <Offset>[details.localPosition];
-    }
-    _overlayTick.value += 1;
-  }
-
-  void _onDrawUpdate(DragUpdateDetails details) {
-    if (_activeTool != EditorTool.draw) {
-      return;
-    }
-
-    if (_drawMode == DrawMode.eraser) {
-      _eraseAt(details.localPosition);
-    } else {
-      _activeStrokePoints.add(details.localPosition);
-    }
-    _overlayTick.value += 1;
-  }
-
-  void _onDrawEnd(DragEndDetails details) {
-    if (_activeTool != EditorTool.draw) {
-      return;
-    }
-
-    if (_drawMode == DrawMode.eraser) {
-      final List<StrokePath> before = _eraseBeforeSnapshot ?? <StrokePath>[];
-      _eraseBeforeSnapshot = null;
-      final List<StrokePath> after = _cloneStrokes(_strokes);
-      if (!_strokesEquals(before, after)) {
-        _pushAction(
-          EditorAction(
-            undo: () {
-              _strokes
-                ..clear()
-                ..addAll(_cloneStrokes(before));
-            },
-            redo: () {
-              _strokes
-                ..clear()
-                ..addAll(_cloneStrokes(after));
-            },
-          ),
-        );
-        _overlayDirty = true;
-      }
-      _overlayTick.value += 1;
-      if (mounted) {
-        setState(() {});
-      }
-      return;
-    }
-
-    if (_activeStrokePoints.length < 2) {
-      _activeStrokePoints = <Offset>[];
-      _overlayTick.value += 1;
-      return;
-    }
-
-    final StrokePath stroke = StrokePath(
-      points: List<Offset>.from(_activeStrokePoints),
-      color: _drawColor,
-      width: _drawWidth,
-      opacity: _drawOpacity,
-    );
-    _strokes.add(stroke);
-    _pushAction(
-      EditorAction(
-        undo: () => _strokes.remove(stroke),
-        redo: () => _strokes.add(stroke),
-      ),
+    final TextEditingController pageController = TextEditingController(
+      text: _currentPage.toString(),
     );
 
-    _overlayDirty = true;
-    _activeStrokePoints = <Offset>[];
-    _overlayTick.value += 1;
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  void _eraseAt(Offset point) {
-    final double threshold = _eraserSize.clamp(6, 80);
-    final List<StrokePath> rebuilt = <StrokePath>[];
-
-    for (final StrokePath stroke in _strokes) {
-      final List<List<Offset>> segments = <List<Offset>>[];
-      List<Offset> current = <Offset>[];
-
-      for (final Offset p in stroke.points) {
-        final bool keep = (p - point).distance > threshold;
-        if (keep) {
-          current.add(p);
-        } else {
-          if (current.length > 1) {
-            segments.add(current);
-          }
-          current = <Offset>[];
-        }
-      }
-      if (current.length > 1) {
-        segments.add(current);
-      }
-
-      if (segments.isEmpty) {
-        continue;
-      }
-
-      for (final List<Offset> segment in segments) {
-        rebuilt.add(
-          StrokePath(
-            points: segment,
-            color: stroke.color,
-            width: stroke.width,
-            opacity: stroke.opacity,
-          ),
-        );
-      }
-    }
-
-    _strokes
-      ..clear()
-      ..addAll(rebuilt);
-  }
-
-  List<StrokePath> _cloneStrokes(List<StrokePath> source) {
-    return source
-        .map(
-          (StrokePath s) => StrokePath(
-            points: List<Offset>.from(s.points),
-            color: s.color,
-            width: s.width,
-            opacity: s.opacity,
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  bool _strokesEquals(List<StrokePath> a, List<StrokePath> b) {
-    if (a.length != b.length) {
-      return false;
-    }
-
-    for (int i = 0; i < a.length; i += 1) {
-      final StrokePath sa = a[i];
-      final StrokePath sb = b[i];
-      if (sa.color != sb.color ||
-          sa.width != sb.width ||
-          sa.opacity != sb.opacity ||
-          sa.points.length != sb.points.length) {
-        return false;
-      }
-      for (int j = 0; j < sa.points.length; j += 1) {
-        if ((sa.points[j] - sb.points[j]).distance > 0.01) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  Future<void> _onTextTap(TapDownDetails details) async {
-    if (_activeTool != EditorTool.text || !mounted) {
-      return;
-    }
-
-    final TextEditingController inputController = TextEditingController();
-    final String? text = await showModalBottomSheet<String>(
+    final int? page = await showDialog<int>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
       builder: (BuildContext context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 8,
-            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+        return AlertDialog(
+          title: const Text('Jump To Page'),
+          content: TextField(
+            controller: pageController,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: InputDecoration(labelText: 'Page (1-$_pageCount)'),
+            onSubmitted: (String value) =>
+                Navigator.of(context).pop(int.tryParse(value.trim())),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: inputController,
-                autofocus: true,
-                maxLines: 4,
-                minLines: 1,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Enter text',
-                  hintText: 'Type text to place on PDF',
-                ),
-                onSubmitted: (String value) {
-                  Navigator.of(context).pop(value.trim());
-                },
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(inputController.text.trim());
-                  },
-                  child: const Text('Add Text'),
-                ),
-              ),
-            ],
-          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(int.tryParse(pageController.text.trim())),
+              child: const Text('Go'),
+            ),
+          ],
         );
       },
     );
-    inputController.dispose();
 
-    if (text == null || text.isEmpty) {
+    pageController.dispose();
+
+    if (page == null) {
       return;
     }
 
-    final TextOverlay item = TextOverlay(
-      text: text,
-      position: details.localPosition,
-      textColor: _textColor,
-      backgroundColor: _textBackground,
-      fontSize: _textSize,
-      fontFamily: _textFont,
-      textAlign: _textAlign,
-    );
-    _textOverlays.add(item);
-    _pushAction(
-      EditorAction(
-        undo: () => _textOverlays.remove(item),
-        redo: () => _textOverlays.add(item),
-      ),
-    );
-    _overlayDirty = true;
-    _overlayTick.value += 1;
-    if (mounted) {
-      setState(() {});
-    }
+    _controller.jumpToPage(page.clamp(1, _pageCount));
   }
 
-  PreferredSizeWidget? _buildAppBar() {
-    if (!_chromeVisible) {
-      return null;
-    }
-
+  PreferredSizeWidget _buildAppBar() {
     if (_searchMode) {
       final PdfTextSearchResult? sr = _searchResult;
       final String suffix = (sr != null && sr.hasResult)
@@ -846,8 +154,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
       return AppBar(
         leading: IconButton(
-          tooltip: 'Close search',
-          onPressed: _closeSearchMode,
+          onPressed: _closeSearch,
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: TextField(
@@ -865,12 +172,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         actions: [
           IconButton(
             tooltip: 'Previous result',
-            onPressed: _previousSearchResult,
+            onPressed: _searchResult?.previousInstance,
             icon: const Icon(Icons.keyboard_arrow_up_rounded),
           ),
           IconButton(
             tooltip: 'Next result',
-            onPressed: _nextSearchResult,
+            onPressed: _searchResult?.nextInstance,
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
           ),
         ],
@@ -881,52 +188,28 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       actions: [
         IconButton(
-          tooltip: 'Zoom out',
-          onPressed: _zoomOut,
-          icon: const Icon(Icons.zoom_out_rounded),
-        ),
-        IconButton(
-          tooltip: 'Zoom in',
-          onPressed: _zoomIn,
-          icon: const Icon(Icons.zoom_in_rounded),
-        ),
-        IconButton(
           tooltip: 'Open editor',
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => PdfEditorScreen(
-                  pdfPath: widget.pdfPath,
-                  title: widget.title,
-                ),
-              ),
-            );
-          },
+          onPressed: _openEditor,
           icon: const Icon(Icons.edit_rounded),
         ),
         PopupMenuButton<String>(
           onSelected: (String value) {
-            if (value == 'search_pdf') {
-              _openSearchMode();
-            } else if (value == 'jump_page') {
-              _showJumpToPageDialog();
-            } else if (value == 'share') {
-              _share();
-            } else if (value == 'open_external') {
+            if (value == 'search') {
+              setState(() => _searchMode = true);
+              return;
+            }
+            if (value == 'jump') {
+              _jumpToPageDialog();
+              return;
+            }
+            if (value == 'share') {
               _share();
             }
           },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(value: 'search_pdf', child: Text('Search in PDF')),
-            const PopupMenuItem<String>(value: 'jump_page', child: Text('Jump to page')),
-            const PopupMenuItem<String>(
-              value: 'share',
-              child: Text('Share'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'open_external',
-              child: Text('Open in default browser/apps'),
-            ),
+          itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(value: 'search', child: Text('Search in PDF')),
+            PopupMenuItem<String>(value: 'jump', child: Text('Jump to page')),
+            PopupMenuItem<String>(value: 'share', child: Text('Share')),
           ],
         ),
       ],
@@ -936,104 +219,86 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bg = isDark
-        ? AppColors.darkBackground
-        : AppColors.lightBackground;
+    final Color bg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
 
     return Scaffold(
       backgroundColor: bg,
       appBar: _buildAppBar(),
       body: File(widget.pdfPath).existsSync()
-          ? LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                return Stack(
-                  children: [
-                    SfPdfViewer.file(
-                      File(widget.pdfPath),
-                      controller: _controller,
-                      canShowPaginationDialog: false,
-                      canShowScrollHead: false,
-                      canShowPageLoadingIndicator: true,
-                      canShowScrollStatus: false,
-                      interactionMode: _activeTool == EditorTool.draw
-                          ? PdfInteractionMode.pan
-                          : PdfInteractionMode.pan,
-                      enableTextSelection:
-                          _activeTool == EditorTool.highlighter,
-                      enableDoubleTapZooming: true,
-                      maxZoomLevel: 5,
-                      pageSpacing: 2,
-                      onTap: (PdfGestureDetails details) {
-                        _toggleChrome();
-                      },
-                      onDocumentLoaded: (PdfDocumentLoadedDetails details) {
-                        if (!mounted) {
-                          return;
-                        }
-                        setState(() {
-                          _isLoading = false;
-                          _loadError = null;
-                          _pageCount = details.document.pages.count;
-                          _currentPage = _controller.pageNumber;
-                        });
-                      },
-                      onDocumentLoadFailed:
-                          (PdfDocumentLoadFailedDetails details) {
-                            if (!mounted) {
-                              return;
-                            }
-                            setState(() {
-                              _isLoading = false;
-                              _loadError = details.description;
-                            });
-                          },
-                      onPageChanged: (PdfPageChangedDetails details) {
-                        if (!mounted) {
-                          return;
-                        }
-                        setState(() {
-                          _currentPage = details.newPageNumber;
-                        });
-
-                        if (details.newPageNumber > details.oldPageNumber) {
-                          _setChromeVisible(false);
-                        } else if (details.newPageNumber <
-                                details.oldPageNumber ||
-                            details.newPageNumber == 1) {
-                          _setChromeVisible(true);
-                        }
-                      },
-                      onZoomLevelChanged: (PdfZoomDetails details) {
-                        // Intentionally no setState to avoid heavy rebuilds while pinching.
-                      },
+          ? Stack(
+              children: [
+                SfPdfViewer.file(
+                  File(widget.pdfPath),
+                  controller: _controller,
+                  canShowPaginationDialog: false,
+                  canShowScrollHead: false,
+                  canShowPageLoadingIndicator: true,
+                  canShowScrollStatus: false,
+                  maxZoomLevel: 5,
+                  pageSpacing: 2,
+                  onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() {
+                      _isLoading = false;
+                      _loadError = null;
+                      _pageCount = details.document.pages.count;
+                      _currentPage = _controller.pageNumber;
+                    });
+                  },
+                  onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() {
+                      _isLoading = false;
+                      _loadError = details.description;
+                    });
+                  },
+                  onPageChanged: (PdfPageChangedDetails details) {
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() {
+                      _currentPage = details.newPageNumber;
+                    });
+                  },
+                ),
+                if (_isLoading)
+                  const Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(minHeight: 2.5),
+                  ),
+                if (_loadError != null)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(_loadError!, textAlign: TextAlign.center),
                     ),
-                    if (_isLoading)
-                      const Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: LinearProgressIndicator(minHeight: 2.5),
+                  ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Text(
+                        '$_currentPage / $_pageCount',
+                        style: const TextStyle(color: Colors.white),
                       ),
-                    if (_loadError != null)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(_loadError!, textAlign: TextAlign.center),
-                        ),
-                      ),
-                    if (_isSaving)
-                      const Positioned.fill(
-                        child: ColoredBox(
-                          color: Color(0x55000000),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      ),
-                  ],
-                );
-              },
+                    ),
+                  ),
+                ),
+              ],
             )
           : const Center(child: Text('PDF file not found.')),
     );
   }
 }
-
