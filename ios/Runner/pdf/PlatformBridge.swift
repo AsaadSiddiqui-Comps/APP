@@ -94,6 +94,52 @@ final class PlatformBridge {
       engine.addImage(path: path, x: x, y: y, width: width, height: height)
       result(nil)
 
+    case "updateText":
+      guard let args = call.arguments as? [String: Any] else {
+        result(FlutterError(code: "invalid_args", message: "arguments are required", details: nil))
+        return
+      }
+      let id = args["id"] as? String ?? ""
+      let text = args["text"] as? String ?? ""
+      let x = (args["x"] as? NSNumber)?.doubleValue ?? 0
+      let y = (args["y"] as? NSNumber)?.doubleValue ?? 0
+      let color = (args["color"] as? NSNumber)?.intValue ?? Int(0xFF000000)
+      let fontSize = (args["fontSize"] as? NSNumber)?.doubleValue ?? 16.0
+      if !id.isEmpty {
+        engine.updateText(id: id, text: text, x: x, y: y, color: color, fontSize: fontSize)
+      }
+      result(nil)
+
+    case "updateImage":
+      guard let args = call.arguments as? [String: Any] else {
+        result(FlutterError(code: "invalid_args", message: "arguments are required", details: nil))
+        return
+      }
+      let id = args["id"] as? String ?? ""
+      let path = args["path"] as? String ?? ""
+      let x = (args["x"] as? NSNumber)?.doubleValue ?? 0
+      let y = (args["y"] as? NSNumber)?.doubleValue ?? 0
+      let width = (args["width"] as? NSNumber)?.doubleValue ?? 100.0
+      let height = (args["height"] as? NSNumber)?.doubleValue ?? 100.0
+      if !id.isEmpty {
+        engine.updateImage(id: id, path: path, x: x, y: y, width: width, height: height)
+      }
+      result(nil)
+
+    case "deleteText":
+      let args = call.arguments as? [String: Any]
+      if let id = args?["id"] as? String, !id.isEmpty {
+        engine.deleteText(id: id)
+      }
+      result(nil)
+
+    case "deleteImage":
+      let args = call.arguments as? [String: Any]
+      if let id = args?["id"] as? String, !id.isEmpty {
+        engine.deleteImage(id: id)
+      }
+      result(nil)
+
     case "addPage":
       let args = call.arguments as? [String: Any]
       let page = (args?["afterPage"] as? NSNumber)?.intValue

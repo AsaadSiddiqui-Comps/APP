@@ -61,18 +61,38 @@ final class PdfEngine {
 
   func addHighlight(x: Double, y: Double, w: Double, h: Double, color: Int, opacity: Double) {
     annotationHandler.addHighlight(
-      HighlightOperation(page: currentPage, x: x, y: y, w: w, h: h, color: color, opacity: opacity)
+      HighlightOperation(id: _nextId(), page: currentPage, x: x, y: y, w: w, h: h, color: color, opacity: opacity)
     )
     rebuildFrame(refreshBase: false)
   }
 
   func addText(text: String, x: Double, y: Double, color: Int = Int(0xFF000000), fontSize: Double = 16.0) {
-    annotationHandler.addText(TextOperation(page: currentPage, text: text, x: x, y: y, color: color, fontSize: fontSize))
+    annotationHandler.addText(TextOperation(id: _nextId(), page: currentPage, text: text, x: x, y: y, color: color, fontSize: fontSize))
     rebuildFrame(refreshBase: false)
   }
 
   func addImage(path: String, x: Double, y: Double, width: Double = 100.0, height: Double = 100.0) {
-    annotationHandler.addImage(ImageOperation(page: currentPage, path: path, x: x, y: y, width: width, height: height))
+    annotationHandler.addImage(ImageOperation(id: _nextId(), page: currentPage, path: path, x: x, y: y, width: width, height: height))
+    rebuildFrame(refreshBase: false)
+  }
+
+  func updateText(id: String, text: String, x: Double, y: Double, color: Int, fontSize: Double) {
+    annotationHandler.updateText(id: id, op: TextOperation(id: id, page: currentPage, text: text, x: x, y: y, color: color, fontSize: fontSize))
+    rebuildFrame(refreshBase: false)
+  }
+
+  func updateImage(id: String, path: String, x: Double, y: Double, width: Double, height: Double) {
+    annotationHandler.updateImage(id: id, op: ImageOperation(id: id, page: currentPage, path: path, x: x, y: y, width: width, height: height))
+    rebuildFrame(refreshBase: false)
+  }
+
+  func deleteText(id: String) {
+    annotationHandler.deleteText(id: id)
+    rebuildFrame(refreshBase: false)
+  }
+
+  func deleteImage(id: String) {
+    annotationHandler.deleteImage(id: id)
     rebuildFrame(refreshBase: false)
   }
 
@@ -115,5 +135,9 @@ final class PdfEngine {
     )
 
     invalidator?()
+  }
+
+  private func _nextId() -> String {
+    String(Date().timeIntervalSince1970 * 1_000_000)
   }
 }

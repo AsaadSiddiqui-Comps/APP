@@ -39,6 +39,50 @@ class NativePdfBridge {
     });
   }
 
+  Future<void> updateText(
+    String id,
+    double x,
+    double y, {
+    required int color,
+    required double fontSize,
+    required String text,
+  }) async {
+    await _channel.invokeMethod('updateText', <String, dynamic>{
+      'id': id,
+      'text': text,
+      'x': x,
+      'y': y,
+      'color': color,
+      'fontSize': fontSize,
+    });
+  }
+
+  Future<void> updateImage(
+    String id,
+    double x,
+    double y, {
+    required double width,
+    required double height,
+    required String path,
+  }) async {
+    await _channel.invokeMethod('updateImage', <String, dynamic>{
+      'id': id,
+      'path': path,
+      'x': x,
+      'y': y,
+      'width': width,
+      'height': height,
+    });
+  }
+
+  Future<void> deleteText(String id) async {
+    await _channel.invokeMethod('deleteText', <String, dynamic>{'id': id});
+  }
+
+  Future<void> deleteImage(String id) async {
+    await _channel.invokeMethod('deleteImage', <String, dynamic>{'id': id});
+  }
+
   Future<void> addPage({int? afterPage}) async {
     await _channel.invokeMethod('addPage', <String, dynamic>{
       'afterPage': afterPage,

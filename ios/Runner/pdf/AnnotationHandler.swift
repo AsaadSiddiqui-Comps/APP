@@ -1,6 +1,7 @@
 import Foundation
 
 struct HighlightOperation {
+  let id: String
   let page: Int
   let x: Double
   let y: Double
@@ -11,6 +12,7 @@ struct HighlightOperation {
 }
 
 struct TextOperation {
+  let id: String
   let page: Int
   let text: String
   let x: Double
@@ -20,6 +22,7 @@ struct TextOperation {
 }
 
 struct ImageOperation {
+  let id: String
   let page: Int
   let path: String
   let x: Double
@@ -37,12 +40,42 @@ final class AnnotationHandler {
     highlights.append(op)
   }
 
+  func updateHighlight(id: String, op: HighlightOperation) {
+    if let index = highlights.firstIndex(where: { $0.id == id }) {
+      highlights[index] = op
+    }
+  }
+
+  func deleteHighlight(id: String) {
+    highlights.removeAll { $0.id == id }
+  }
+
   func addText(_ op: TextOperation) {
     texts.append(op)
   }
 
+  func updateText(id: String, op: TextOperation) {
+    if let index = texts.firstIndex(where: { $0.id == id }) {
+      texts[index] = op
+    }
+  }
+
+  func deleteText(id: String) {
+    texts.removeAll { $0.id == id }
+  }
+
   func addImage(_ op: ImageOperation) {
     images.append(op)
+  }
+
+  func updateImage(id: String, op: ImageOperation) {
+    if let index = images.firstIndex(where: { $0.id == id }) {
+      images[index] = op
+    }
+  }
+
+  func deleteImage(id: String) {
+    images.removeAll { $0.id == id }
   }
 
   func allHighlights() -> [HighlightOperation] {

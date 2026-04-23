@@ -1,13 +1,15 @@
 import 'dart:ui';
 
 sealed class PdfEditOperation {
-  const PdfEditOperation({required this.page});
+  const PdfEditOperation({required this.id, required this.page});
 
+  final String id;
   final int page;
 }
 
 class PdfStrokeOperation extends PdfEditOperation {
   const PdfStrokeOperation({
+    required super.id,
     required super.page,
     required this.points,
     required this.color,
@@ -21,6 +23,7 @@ class PdfStrokeOperation extends PdfEditOperation {
 
 class PdfHighlightOperation extends PdfEditOperation {
   const PdfHighlightOperation({
+    required super.id,
     required super.page,
     required this.rect,
     required this.color,
@@ -34,6 +37,7 @@ class PdfHighlightOperation extends PdfEditOperation {
 
 class PdfTextOperation extends PdfEditOperation {
   const PdfTextOperation({
+    required super.id,
     required super.page,
     required this.text,
     required this.position,
@@ -49,6 +53,7 @@ class PdfTextOperation extends PdfEditOperation {
 
 class PdfImageOperation extends PdfEditOperation {
   const PdfImageOperation({
+    required super.id,
     required super.page,
     required this.path,
     required this.position,
@@ -62,6 +67,7 @@ class PdfImageOperation extends PdfEditOperation {
 
 class PdfInsertPageOperation extends PdfEditOperation {
   const PdfInsertPageOperation({
+    required super.id,
     required super.page,
     required this.afterPage,
   });

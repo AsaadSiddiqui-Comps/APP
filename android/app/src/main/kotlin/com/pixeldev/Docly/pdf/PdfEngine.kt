@@ -71,6 +71,7 @@ class PdfEngine {
     fun addHighlight(x: Double, y: Double, w: Double, h: Double, color: Int, opacity: Double) {
         annotationHandler.addHighlight(
             HighlightOperation(
+                id = _nextId(),
                 page = currentPage,
                 x = x,
                 y = y,
@@ -83,13 +84,39 @@ class PdfEngine {
         rebuildFrame(refreshBase = false)
     }
 
+    fun updateText(id: String, text: String, x: Double, y: Double, color: Int, fontSize: Double) {
+        annotationHandler.updateText(
+            id,
+            TextOperation(id, currentPage, text, x, y, color, fontSize)
+        )
+        rebuildFrame(refreshBase = false)
+    }
+
+    fun updateImage(id: String, path: String, x: Double, y: Double, width: Double, height: Double) {
+        annotationHandler.updateImage(
+            id,
+            ImageOperation(id, currentPage, path, x, y, width, height)
+        )
+        rebuildFrame(refreshBase = false)
+    }
+
+    fun deleteText(id: String) {
+        annotationHandler.deleteText(id)
+        rebuildFrame(refreshBase = false)
+    }
+
+    fun deleteImage(id: String) {
+        annotationHandler.deleteImage(id)
+        rebuildFrame(refreshBase = false)
+    }
+
     fun addText(text: String, x: Double, y: Double, color: Int = 0xFF000000.toInt(), fontSize: Double = 16.0) {
-        annotationHandler.addText(TextOperation(currentPage, text, x, y, color, fontSize))
+        annotationHandler.addText(TextOperation(_nextId(), currentPage, text, x, y, color, fontSize))
         rebuildFrame(refreshBase = false)
     }
 
     fun addImage(path: String, x: Double, y: Double, width: Double = 100.0, height: Double = 100.0) {
-        annotationHandler.addImage(ImageOperation(currentPage, path, x, y, width, height))
+        annotationHandler.addImage(ImageOperation(_nextId(), currentPage, path, x, y, width, height))
         rebuildFrame(refreshBase = false)
     }
 
@@ -120,6 +147,8 @@ class PdfEngine {
             images = emptyList(),
         )
     }
+
+    private fun _nextId(): String = System.currentTimeMillis().toString()
 
     private fun rebuildFrame(refreshBase: Boolean) {
         if (refreshBase) {

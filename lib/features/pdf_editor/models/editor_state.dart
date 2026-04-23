@@ -7,6 +7,8 @@ class EditorState {
     this.activeTool = ToolType.none,
     this.currentPage = 1,
     this.pageCount = 1,
+    this.selectedOperationId,
+    this.revision = 0,
     this.strokeWidth = 3.5,
     this.strokeColor = const Color(0xFFEF5350),
     this.highlightColor = const Color(0xFFFFEB3B),
@@ -21,6 +23,8 @@ class EditorState {
   final ToolType activeTool;
   final int currentPage;
   final int pageCount;
+  final String? selectedOperationId;
+  final int revision;
   final double strokeWidth;
   final Color strokeColor;
   final Color highlightColor;
@@ -35,6 +39,9 @@ class EditorState {
     ToolType? activeTool,
     int? currentPage,
     int? pageCount,
+    String? selectedOperationId,
+    bool clearSelectedOperationId = false,
+    int? revision,
     double? strokeWidth,
     Color? strokeColor,
     Color? highlightColor,
@@ -49,6 +56,8 @@ class EditorState {
       activeTool: activeTool ?? this.activeTool,
       currentPage: currentPage ?? this.currentPage,
       pageCount: pageCount ?? this.pageCount,
+      selectedOperationId: clearSelectedOperationId ? null : selectedOperationId ?? this.selectedOperationId,
+      revision: revision ?? this.revision,
       strokeWidth: strokeWidth ?? this.strokeWidth,
       strokeColor: strokeColor ?? this.strokeColor,
       highlightColor: highlightColor ?? this.highlightColor,

@@ -8,6 +8,7 @@ import '../models/editor_state.dart';
 import '../models/tool_type.dart';
 import '../services/native_pdf_bridge.dart';
 import '../widgets/canvas_gesture_layer.dart';
+import '../widgets/editable_annotation_layer.dart';
 import '../widgets/editor_toolbar.dart';
 import '../widgets/native_pdf_surface.dart';
 import '../widgets/tool_config_panel.dart';
@@ -62,40 +63,44 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
 
   Future<void> _onCanvasTap(Offset p, ToolType tool) async {
     if (tool == ToolType.text) {
-      final TextEditingController textController = TextEditingController();
+      String draftText = '';
       final String? text = await showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (BuildContext context) {
-          return Padding(
+          return AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
             padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: textController,
-                  autofocus: true,
-                  maxLines: 4,
-                  minLines: 1,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(labelText: 'Text'),
-                  onSubmitted: (String value) => Navigator.of(context).pop(value.trim()),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => Navigator.of(context).pop(textController.text.trim()),
-                    child: const Text('Insert text'),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    autofocus: true,
+                    maxLines: 4,
+                    minLines: 1,
+                    textInputAction: TextInputAction.done,
+                    decoration: const InputDecoration(labelText: 'Text'),
+                    onChanged: (String value) => draftText = value,
+                    onSubmitted: (String value) => Navigator.of(context).pop(value.trim()),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(draftText.trim()),
+                      child: const Text('Insert text'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
       );
-      textController.dispose();
       if (text != null && text.trim().isNotEmpty) {
         await _controller.addText(text.trim(), p);
       }
@@ -161,7 +166,16 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                         onStrokeUpdate: _controller.onStrokeUpdate,
                         onStrokeEnd: _controller.onStrokeEnd,
                         onHighlightRect: _controller.addHighlightRect,
+                        onBackgroundTap: () => _controller.selectOperation(null),
                         onTap: (Offset p) => _onCanvasTap(p, state.activeTool),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: EditableAnnotationLayer(
+                        controller: _controller,
+                        page: state.currentPage,
+                        selectedOperationId: state.selectedOperationId,
+                        revision: state.revision,
                       ),
                     ),
                     Positioned(
@@ -184,45 +198,53 @@ class _PdfEditorScreenState extends State<PdfEditorScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.4))),
-                ),
-                child: Row(
+              SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton.icon(
-                      onPressed: _controller.goToPreviousPage,
-                      icon: const Icon(Icons.chevron_left_rounded),
-                      label: const Text('Previous'),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text('Page ${state.currentPage} of ${state.pageCount}'),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      decoration: BoxDecoration(
+                        border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.4))),
+                      ),
+                      child: Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: _controller.goToPreviousPage,
+                            icon: const Icon(Icons.chevron_left_rounded),
+                            label: const Text('Previous'),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: Text('Page ${state.currentPage} of ${state.pageCount}'),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _controller.goToNextPage,
+                            icon: const Icon(Icons.chevron_right_rounded),
+                            label: const Text('Next'),
+                          ),
+                        ],
                       ),
                     ),
-                    TextButton.icon(
-                      onPressed: _controller.goToNextPage,
-                      icon: const Icon(Icons.chevron_right_rounded),
-                      label: const Text('Next'),
+                    ToolConfigPanel(
+                      state: state,
+                      onStrokeWidthChanged: _controller.setStrokeWidth,
+                      onStrokeColorChanged: _controller.setStrokeColor,
+                      onHighlightColorChanged: _controller.setHighlightColor,
+                      onHighlightOpacityChanged: _controller.setHighlightOpacity,
+                      onTextColorChanged: _controller.setTextColor,
+                      onTextSizeChanged: _controller.setTextSize,
+                    ),
+                    EditorToolbar(
+                      activeTool: state.activeTool,
+                      onToolSelected: _controller.setTool,
+                      onSave: _onSave,
+                      onAddPage: _controller.addPage,
                     ),
                   ],
                 ),
-              ),
-              ToolConfigPanel(
-                state: state,
-                onStrokeWidthChanged: _controller.setStrokeWidth,
-                onStrokeColorChanged: _controller.setStrokeColor,
-                onHighlightColorChanged: _controller.setHighlightColor,
-                onHighlightOpacityChanged: _controller.setHighlightOpacity,
-                onTextColorChanged: _controller.setTextColor,
-                onTextSizeChanged: _controller.setTextSize,
-              ),
-              EditorToolbar(
-                activeTool: state.activeTool,
-                onToolSelected: _controller.setTool,
-                onSave: _onSave,
-                onAddPage: _controller.addPage,
               ),
             ],
           ),
